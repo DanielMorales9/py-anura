@@ -13,5 +13,5 @@ class LSMTree:
     def put(self, key: str, value: str) -> None:
         self.__mem_table[key] = value
 
-    def delete(self, key: str) -> Optional[str]:
-        return self.__mem_table.pop(key, None)
+    def delete(self, key: str) -> None:
+        del self.__mem_table[key]

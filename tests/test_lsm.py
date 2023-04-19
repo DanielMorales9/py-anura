@@ -12,9 +12,10 @@ def test_lsm(my_lsm):
     assert my_lsm.get("key") is None
     my_lsm.put("key", "value")
     assert my_lsm.get("key") == "value"
-    assert my_lsm.delete("key") == "value"
+    my_lsm.delete("key")
     assert my_lsm.get("key") is None
 
 
 def test_delete_lsm(my_lsm):
-    assert my_lsm.delete("key") is None
+    with pytest.raises(KeyError):
+        my_lsm.delete("key")
