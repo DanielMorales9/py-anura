@@ -73,7 +73,7 @@ class BinaryTree:
         self._size = 0
 
     def __repr__(self) -> str:
-        return ", ".join(repr(entry) for entry in traverse(self._root))
+        return repr(traverse(self._root))
 
     def find(self, obj: KeyValueEntry) -> Optional[KeyValueEntry]:
         node, parent = bst_with_parent(self._root, obj)
@@ -142,6 +142,9 @@ class MemTable(Generic[K, V]):
     def __delitem__(self, key: K) -> None:
         if node := self._btree.find(MemNode[K, V](key)):
             node.meta["thumb_stone"] = True
+
+    def __repr__(self) -> str:
+        return repr(self._btree)
 
 
 class LSMTree(Generic[K, V]):
