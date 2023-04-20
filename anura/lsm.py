@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, Generic, List, Optional, Tuple, TypeVar
 
-T = TypeVar("T")
 K = TypeVar("K")
 V = TypeVar("V")
 
@@ -32,63 +31,65 @@ class KeyValueEntry(ABC, Generic[K, V]):
         return id(self.key) < id(other.key)
 
 
+T = TypeVar("T", bound=KeyValueEntry)
+
+
 @dataclass
-class Node:
-    data: KeyValueEntry
+class Node(Generic[T]):
+    data: T
     parent: Optional["Node"] = None
     left: Optional["Node"] = None
     right: Optional["Node"] = None
 
 
-def traverse(node: Optional[Node]) -> List[KeyValueEntry]:
-    res: List[Any] = []
-    if not node:
-        return res
-    if node.left:
-        res += traverse(node.left)
-    res.append(node.data)
-    if node.right:
-        res += traverse(node.right)
-    return res
-
-
-def bst_with_parent(root: Optional[Node], obj: KeyValueEntry) -> Tuple[Optional[Node], Optional[Node]]:
-    node = root
-    parent: Optional[Node] = None
-
-    while node:
-        parent = node
-        if obj == node.data:
-            return node, parent
-        elif obj < node.data:
-            node = node.left
-        else:
-            node = node.right
-    return None, parent
-
-
-class BinaryTree:
+class BinaryTree(Generic[T]):
     def __init__(self) -> None:
         self._root: Optional[Node] = None
         self._size = 0
 
-    def __repr__(self) -> str:
-        return repr(traverse(self._root))
+    def traverse(self, node: Optional[Node]) -> List[T]:
+        res: List[Any] = []
+        if not node:
+            return res
+        if node.left:
+            res += self.traverse(node.left)
+        res.append(node.data)
+        if node.right:
+            res += self.traverse(node.right)
+        return res
 
-    def find(self, obj: KeyValueEntry) -> Optional[KeyValueEntry]:
-        node, parent = bst_with_parent(self._root, obj)
+    def __repr__(self) -> str:
+        return repr(self.traverse(self._root))
+
+    @staticmethod
+    def bst_with_parent(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
+        node = root
+        parent: Optional[Node] = None
+
+        while node:
+            parent = node
+            if obj == node.data:
+                return node, parent
+            elif obj < node.data:
+                node = node.left
+            else:
+                node = node.right
+        return None, parent
+
+    def find(self, obj: T) -> Optional[T]:
+        node, _ = self.bst_with_parent(self._root, obj)
         if node:
             return node.data
         return None
 
-    def insert(self, obj: KeyValueEntry) -> None:
+    def insert(self, obj: T) -> None:
         if not self._root:
             self._root = Node(obj)
             self._size += 1
             self._root.data = obj
             return
 
-        node, parent = bst_with_parent(self._root, obj)
+        node, parent = self.bst_with_parent(self._root, obj)
         if node:
             node.data = obj
 
@@ -129,7 +130,7 @@ class MemNode(KeyValueEntry[K, V]):
 
 class MemTable(Generic[K, V]):
     def __init__(self) -> None:
-        self._btree = BinaryTree()
+        self._btree = BinaryTree[MemNode[K, V]]()
 
     def __getitem__(self, key: K) -> Optional[V]:
         if (data := self._btree.find(MemNode[K, V](key))) and not data.meta["thumb_stone"]:

@@ -28,6 +28,12 @@ def test_get_mem_table(my_mem_table):
     assert my_mem_table["key2"] == "value2"
 
 
+def test_get_mem_table_is_bst(my_mem_table):
+    for i in range(10):
+        my_mem_table[i] = i
+    assert repr(my_mem_table) == "[" + ", ".join(f"{i}:{i}" for i in range(10)) + "]"
+
+
 def test_delete_mem_table(my_mem_table):
     my_mem_table["key1"] = "value1"
     my_mem_table["key2"] = "value2"
