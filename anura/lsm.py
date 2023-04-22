@@ -6,7 +6,7 @@ K = TypeVar("K")
 V = TypeVar("V")
 
 
-class KeyValueEntry(ABC, Generic[K, V]):
+class AKeyValueEntry(ABC, Generic[K, V]):
     @property
     @abstractmethod
     def key(self) -> K:
@@ -17,21 +17,16 @@ class KeyValueEntry(ABC, Generic[K, V]):
     def value(self) -> Optional[V]:
         pass
 
-    @property
-    @abstractmethod
-    def meta(self) -> Any:
-        pass
-
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, KeyValueEntry):
+        if not isinstance(other, AKeyValueEntry):
             return False
         return id(self.key) == id(other.key)
 
-    def __lt__(self, other: "KeyValueEntry") -> bool:
+    def __lt__(self, other: "AKeyValueEntry") -> bool:
         return id(self.key) < id(other.key)
 
 
-T = TypeVar("T", bound=KeyValueEntry)
+T = TypeVar("T", bound=AKeyValueEntry)
 
 
 @dataclass
@@ -106,7 +101,7 @@ class BinaryTree(Generic[T]):
         return None
 
 
-class MemNode(KeyValueEntry[K, V]):
+class MemNode(AKeyValueEntry[K, V]):
     def __init__(self, key: K, value: Optional[V] = None, thumb_stone: bool = False):
         self._key: K = key
         self._value: Optional[V] = value
