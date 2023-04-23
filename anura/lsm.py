@@ -1,6 +1,6 @@
 from typing import Any, Dict, Generic, Optional, TypeVar
 
-from anura.btree import BinaryTree, Comparable
+from anura.btree import BinarySearchTree, Comparable
 
 K = TypeVar("K")
 V = TypeVar("V")
@@ -44,6 +44,9 @@ class KeyValueEntry(Comparable, Generic[K, V]):
             return False
         return self.key >= other.key
 
+    def __repr__(self) -> str:
+        return f"{self._key}:{self._value}"
+
 
 class MemNode(KeyValueEntry[K, V]):
     def __init__(self, key: K, value: Optional[V] = None, thumb_stone: bool = False):
@@ -54,13 +57,10 @@ class MemNode(KeyValueEntry[K, V]):
     def meta(self) -> Dict[str, Any]:
         return self._meta
 
-    def __repr__(self) -> str:
-        return f"{self._key}:{self._value}"
-
 
 class MemTable(Generic[K, V]):
     def __init__(self) -> None:
-        self._btree = BinaryTree[MemNode[K, V]]()
+        self._btree = BinarySearchTree[MemNode[K, V]]()
 
     def __getitem__(self, key: K) -> Optional[V]:
         if (data := self._btree.find(MemNode[K, V](key))) and not data.meta["thumb_stone"]:

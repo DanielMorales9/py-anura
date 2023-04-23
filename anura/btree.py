@@ -36,27 +36,16 @@ class Node(Generic[T]):
     right: Optional["Node"] = None
 
 
-class BinaryTree(Generic[T]):
+class BinarySearchTree(Generic[T]):
     def __init__(self) -> None:
         self._root: Optional[Node] = None
         self._size = 0
 
-    def traverse(self, node: Optional[Node]) -> List[T]:
-        res: List[Any] = []
-        if not node:
-            return res
-        if node.left:
-            res += self.traverse(node.left)
-        res.append(node.data)
-        if node.right:
-            res += self.traverse(node.right)
-        return res
-
     def __repr__(self) -> str:
-        return repr(self.traverse(self._root))
+        return repr(rec_traverse(self._root))
 
     @staticmethod
-    def bst_with_parent(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
+    def search(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
         node = root
         parent: Optional[Node] = None
 
@@ -71,7 +60,7 @@ class BinaryTree(Generic[T]):
         return None, parent
 
     def find(self, obj: T) -> Optional[T]:
-        node, _ = self.bst_with_parent(self._root, obj)
+        node, _ = self.search(self._root, obj)
         if node:
             return node.data
         return None
@@ -83,7 +72,7 @@ class BinaryTree(Generic[T]):
             self._root.data = obj
             return
 
-        node, parent = self.bst_with_parent(self._root, obj)
+        node, parent = self.search(self._root, obj)
         if node:
             node.data = obj
 
@@ -98,3 +87,48 @@ class BinaryTree(Generic[T]):
 
         self._size += 1
         return None
+
+    def visual_repr(self) -> str:
+        return "\n" + rec_visualise(self._root) + "\n"
+
+
+def rec_visualise(node: Optional[Node]) -> str:
+    if not node:
+        return ""
+    lines = []
+    if node.right:
+        found = False
+        for line in rec_visualise(node.right).split("\n"):
+            if line[0] != " ":
+                found = True
+                line = " ┌─" + line
+            elif found:
+                line = " | " + line
+            else:
+                line = "   " + line
+            lines.append(line)
+    lines.append(repr(node.data))
+    if node.left:
+        found = False
+        for line in rec_visualise(node.left).split("\n"):
+            if line[0] != " ":
+                found = True
+                line = " └─" + line
+            elif found:
+                line = "   " + line
+            else:
+                line = " | " + line
+            lines.append(line)
+    return "\n".join(lines)
+
+
+def rec_traverse(node: Optional[Node]) -> List[T]:
+    res: List[Any] = []
+    if not node:
+        return res
+    if node.left:
+        res += rec_traverse(node.left)
+    res.append(node.data)
+    if node.right:
+        res += rec_traverse(node.right)
+    return res
