@@ -24,7 +24,6 @@ def test_lsm(my_lsm):
 def test_get_mem_table(my_mem_table):
     my_mem_table["key1"] = "value1"
     my_mem_table["key2"] = "value2"
-    print(my_mem_table)
     assert my_mem_table["key2"] == "value2"
 
 

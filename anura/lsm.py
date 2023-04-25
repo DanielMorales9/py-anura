@@ -1,4 +1,4 @@
-from typing import Any, Dict, Generic, Optional, TypeVar
+from typing import Any, Generic, Optional, TypeVar
 
 from anura.btree import BinarySearchTree, Comparable
 
@@ -49,13 +49,17 @@ class KeyValueEntry(Comparable, Generic[K, V]):
 
 
 class MemNode(KeyValueEntry[K, V]):
-    def __init__(self, key: K, value: Optional[V] = None, thumb_stone: bool = False):
+    def __init__(self, key: K, value: Optional[V] = None, tombstone: bool = False):
         super().__init__(key, value)
-        self._meta: Dict[str, Any] = {"thumb_stone": thumb_stone}
+        self._tombstone: bool = tombstone
 
     @property
-    def meta(self) -> Dict[str, Any]:
-        return self._meta
+    def is_deleted(self) -> bool:
+        return self._tombstone
+
+    @is_deleted.setter
+    def is_deleted(self, value: bool) -> None:
+        self._tombstone = value
 
 
 class MemTable(Generic[K, V]):
@@ -63,7 +67,8 @@ class MemTable(Generic[K, V]):
         self._btree = BinarySearchTree[MemNode[K, V]]()
 
     def __getitem__(self, key: K) -> Optional[V]:
-        if (data := self._btree.find(MemNode[K, V](key))) and not data.meta["thumb_stone"]:
+        data = self._btree.find(MemNode[K, V](key))
+        if data and not data.is_deleted:
             return data.value
         return None
 
@@ -72,7 +77,7 @@ class MemTable(Generic[K, V]):
 
     def __delitem__(self, key: K) -> None:
         if node := self._btree.find(MemNode[K, V](key)):
-            node.meta["thumb_stone"] = True
+            node.is_deleted = True
 
     def __repr__(self) -> str:
         return repr(self._btree)

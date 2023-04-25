@@ -39,7 +39,7 @@ class Node(Generic[T]):
 class BinarySearchTree(Generic[T]):
     def __init__(self) -> None:
         self._root: Optional[Node] = None
-        self._size = 0
+        self.size = 0
 
     def __repr__(self) -> str:
         return repr(rec_traverse(self._root))
@@ -68,7 +68,7 @@ class BinarySearchTree(Generic[T]):
     def insert(self, obj: T) -> None:
         if not self._root:
             self._root = Node(obj)
-            self._size += 1
+            self.size += 1
             self._root.data = obj
             return
 
@@ -85,7 +85,7 @@ class BinarySearchTree(Generic[T]):
 
         # TODO: re-balance
 
-        self._size += 1
+        self.size += 1
         return None
 
     def visual_repr(self) -> str:
