@@ -120,11 +120,12 @@ def unpack(
     base_size: Any,
     is_container: Any = False,
     charset: Any = None,
+    length_type: Any = None,
     **kwargs: Any,
 ) -> Tuple[Any, int]:
     start, offset, size = 0, base_size, 1
     if is_container:
-        size, offset = unpack(block[start:], **MetaConfig[MetaType.UNSIGNED_SHORT])
+        size, offset = unpack(block[start:], **MetaConfig[length_type])
         start, offset = start + offset, start + offset + base_size * size
     res = struct.unpack(f">{size}{struct_symbol}", block[start:offset])[0]
     if charset:
