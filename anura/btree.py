@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, List, Optional, Tuple, TypeVar
+from typing import Any, Generator, Generic, Optional, Tuple, TypeVar
 
 
 class Comparable(ABC):
@@ -36,13 +36,32 @@ class Node(Generic[T]):
     right: Optional["Node"] = None
 
 
+def inorder_traversal(node: Optional[Node[T]]) -> Generator[Node[T], None, None]:
+    if not node:
+        return
+    stack = [node]
+    while stack:
+        if node.left:
+            stack.append(node.left)
+            node = node.left
+        else:
+            node = stack.pop()
+            yield node
+            if node.right:
+                stack.append(node.right)
+                node = node.right
+
+
 class BinarySearchTree(Generic[T]):
     def __init__(self) -> None:
-        self._root: Optional[Node] = None
+        self._root: Optional[Node[T]] = None
         self.size = 0
 
+    def __iter__(self) -> Generator[Node[T], None, None]:
+        yield from inorder_traversal(self._root)
+
     def __repr__(self) -> str:
-        return repr(rec_traverse(self._root))
+        return repr([node.data for node in inorder_traversal(self._root)])
 
     @staticmethod
     def search(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
@@ -120,15 +139,3 @@ def rec_visualise(node: Optional[Node]) -> str:
                 line = " | " + line
             lines.append(line)
     return "\n".join(lines)
-
-
-def rec_traverse(node: Optional[Node]) -> List[T]:
-    res: List[Any] = []
-    if not node:
-        return res
-    if node.left:
-        res += rec_traverse(node.left)
-    res.append(node.data)
-    if node.right:
-        res += rec_traverse(node.right)
-    return res
