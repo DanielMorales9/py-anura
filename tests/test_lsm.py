@@ -74,3 +74,4 @@ def test_flush_sstable(tmp_path, data, metadata):
         decoded_block = list(decode(raw, metadata))
         assert len(decoded_block) == 100
         assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
+        assert all(not record.is_deleted for record in decoded_block)
