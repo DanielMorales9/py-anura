@@ -168,14 +168,11 @@ class SSTable(Generic[K, V]):
     def __init__(self, path: Path, metadata: Sequence[MetaType], serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []
         self._path = path
-        if serial:
-            self._serial = serial
-        else:
-            self._serial = int(datetime.utcnow().timestamp())
-        self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
-        self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
         self._metadata = metadata
         self._index_meta = (metadata[0], self._offset_meta)
+        self._serial = serial or int(datetime.utcnow().timestamp())
+        self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
+        self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
 
     def flush(self, table: MemTable[K, V]) -> None:
         offset = 0
@@ -187,12 +184,15 @@ class SSTable(Generic[K, V]):
                     f.write(e_record)
                     offset += len(e_record)
 
-        self._write_index()
+        self._flush_index()
 
-    def _write_index(self) -> None:
+    def _flush_index(self) -> None:
         with open(self._index_path, "wb") as f:
             for el in self._index:
                 f.write(encode(el, self._index_meta))
+
+    def find(self, key: K) -> Optional[MemNode[K, V]]:
+        return None
 
 
 class LSMTree(Generic[K, V]):
@@ -211,8 +211,15 @@ class LSMTree(Generic[K, V]):
         del self._mem_table[key]
 
     def flush(self, metadata: Sequence[MetaType] = (MetaType.VARCHAR, MetaType.VARCHAR, MetaType.BOOL)) -> None:
-        table = SSTable[K, V](self._path, metadata)
         # TODO handle metadata effectively
+        table = SSTable[K, V](self._path, metadata)
         table.flush(self._mem_table)
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()
+
+    def _find(self, key: K) -> Optional[V]:
+        for table in self._tables:
+            node = table.find(key)
+            if node and not node.is_deleted:
+                return node.value
+        return None

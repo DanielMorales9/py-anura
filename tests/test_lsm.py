@@ -52,6 +52,14 @@ def test_flush_lsm(my_lsm):
         mock_method.assert_called()
 
 
+def test_find_lsm(my_lsm, tmp_path):
+    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
+    with patch.object(SSTable, "find") as mock_method:
+        assert my_lsm._find("key") is None
+        mock_method.assert_called_once_with("key")
+
+
 @pytest.mark.parametrize(
     "data, index, metadata",
     [
@@ -73,14 +81,13 @@ def test_flush_lsm(my_lsm):
         ),
     ],
 )
-def test_flush_sstable(tmp_path, data, index, metadata):
+def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
     serial = 101
     table = SSTable(tmp_path, metadata, serial=serial)
-    mem = MemTable()
     for k, v in data:
-        mem[k] = v
+        my_mem_table[k] = v
 
-    table.flush(mem)
+    table.flush(my_mem_table)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
         decoded_block = [MemNode(*el) for el in decode(f.read(), metadata)]
         assert len(decoded_block) == 100
