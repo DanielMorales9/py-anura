@@ -37,3 +37,5 @@ MetaConfig = {
         "base_size": 2,
     },
 }
+SSTABLE_EXT = "sst"
+SPARSE_IDX_EXT = "spx"

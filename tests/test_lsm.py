@@ -53,25 +53,40 @@ def test_flush_lsm(my_lsm):
 
 
 @pytest.mark.parametrize(
-    "data, metadata",
+    "data, index, metadata",
     [
-        ([(i, i) for i in range(100)], (MetaType.LONG, MetaType.LONG)),
-        ([(f"key{i}", f"value{i}") for i in range(100)], (MetaType.VARCHAR, MetaType.VARCHAR)),
-        ([(i, f"value{i}") for i in range(100)], (MetaType.LONG, MetaType.VARCHAR)),
-        ([(float(i), f"value{i}") for i in range(100)], (MetaType.DOUBLE, MetaType.VARCHAR)),
+        ([(i, i) for i in range(100)], [[0, 0], [50, (4 * 2 + 1) * 50]], (MetaType.LONG, MetaType.LONG, MetaType.BOOL)),
+        (
+            [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
+            [["key00", 0], ["key50", ((5 + 2) * 2 + 1) * 50]],
+            (MetaType.VARCHAR, MetaType.VARCHAR, MetaType.BOOL),
+        ),
+        (
+            [(i, f"val{i:02d}") for i in range(100)],
+            [[0, 0], [50, (4 + (5 + 2) + 1) * 50]],
+            (MetaType.LONG, MetaType.VARCHAR, MetaType.BOOL),
+        ),
+        (
+            [(float(i), f"val{i:02d}") for i in range(100)],
+            [[0.0, 0], [50.0, (8 + (5 + 2) + 1) * 50]],
+            (MetaType.DOUBLE, MetaType.VARCHAR, MetaType.BOOL),
+        ),
     ],
 )
-def test_flush_sstable(tmp_path, data, metadata):
+def test_flush_sstable(tmp_path, data, index, metadata):
     serial = 101
-    table = SSTable(serial=serial)
+    table = SSTable(tmp_path, metadata, serial=serial)
     mem = MemTable()
     for k, v in data:
         mem[k] = v
 
-    table.flush(tmp_path, mem, metadata=metadata)
+    table.flush(mem)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
-        raw = f.read()
-        decoded_block = list(decode(raw, metadata))
+        decoded_block = [MemNode(*el) for el in decode(f.read(), metadata)]
         assert len(decoded_block) == 100
         assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
         assert all(not record.is_deleted for record in decoded_block)
+
+    with open(tmp_path / f"{serial}.spx", "rb") as f:
+        decoded_index = list(decode(f.read(), table._index_meta))
+        assert decoded_index == index

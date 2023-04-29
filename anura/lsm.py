@@ -1,10 +1,10 @@
 import struct
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Generator, Generic, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
 
 from anura.btree import BinarySearchTree, Comparable
-from anura.constants import BLOCK_SIZE, MetaConfig, MetaType
+from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT, MetaConfig, MetaType
 from anura.utils import chunk
 
 K = TypeVar("K")
@@ -66,6 +66,9 @@ class MemNode(KeyValueEntry[K, V]):
     def is_deleted(self, value: bool) -> None:
         self._tombstone = value
 
+    def __iter__(self) -> Iterator[Any]:
+        return iter((self.key, self.value, self.is_deleted))
+
 
 class MemTable(Generic[K, V]):
     def __init__(self) -> None:
@@ -92,26 +95,22 @@ class MemTable(Generic[K, V]):
             yield node.data
 
 
-def decode(block: bytes, metadata: Tuple[MetaType, MetaType]) -> Generator[MemNode[K, V], None, None]:
-    key_type, value_type = metadata
+def decode(block: bytes, metadata: Sequence[MetaType]) -> Generator[Sequence[Any], None, None]:
     i = 0
     while i < len(block):
-        key, offset = unpack(block[i:], **MetaConfig[key_type])
-        i += offset
-        value, offset = unpack(block[i:], **MetaConfig[value_type])
-        i += offset
-        tombstone, offset = unpack(block[i:], **MetaConfig[MetaType.BOOL])
-        i += offset
-        yield MemNode(key, value, tombstone)
+        record = [None] * len(metadata)
+        for j, metatype in enumerate(metadata):
+            el, offset = unpack(block[i:], **MetaConfig[metatype])
+            record[j] = el
+            i += offset
+        yield record
 
 
-def encode(block: Sequence[MemNode[K, V]], metadata: Tuple[MetaType, MetaType]) -> Generator[bytes, None, None]:
-    key_type, value_type = metadata
-    for record in block:
-        e_key = pack(record.key, **MetaConfig[key_type])
-        e_value = pack(record.value, **MetaConfig[value_type])
-        e_tombstone = pack(record.is_deleted, **MetaConfig[MetaType.BOOL])
-        yield e_key + e_value + e_tombstone
+def encode(record: Sequence[Any], metadata: Sequence[MetaType]) -> bytes:
+    acc = b""
+    for el, meta in zip(record, metadata):
+        acc += pack(el, **MetaConfig[meta])
+    return acc
 
 
 def unpack(
@@ -160,21 +159,40 @@ def pack(
     return res
 
 
+WRITE_MODE = "wb"
+
+
 class SSTable(Generic[K, V]):
-    def __init__(self, serial: Optional[int] = None):
+    _offset_meta = MetaType.LONG
+
+    def __init__(self, path: Path, metadata: Sequence[MetaType], serial: Optional[int] = None):
+        self._index: List[Tuple[K, int]] = []
+        self._path = path
         if serial:
             self._serial = serial
         else:
             self._serial = int(datetime.utcnow().timestamp())
+        self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
+        self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
+        self._metadata = metadata
+        self._index_meta = (metadata[0], self._offset_meta)
 
-    def flush(self, path: Path, table: MemTable[K, V], metadata: Tuple[MetaType, MetaType]) -> None:
-        with open(path / f"{self._serial}.sst", "wb") as f:
+    def flush(self, table: MemTable[K, V]) -> None:
+        offset = 0
+        with open(self._table_path, "wb") as f:
             for block in chunk(table, BLOCK_SIZE):
-                # index.append((block[0].key, offset))
-                for record in encode(block, metadata):
-                    f.write(record)
+                self._index.append((block[0].key, offset))
+                for record in block:
+                    e_record = encode(record, self._metadata)
+                    f.write(e_record)
+                    offset += len(e_record)
 
-        # TODO do something with index
+        self._write_index()
+
+    def _write_index(self) -> None:
+        with open(self._index_path, "wb") as f:
+            for el in self._index:
+                f.write(encode(el, self._index_meta))
 
 
 class LSMTree(Generic[K, V]):
@@ -192,9 +210,9 @@ class LSMTree(Generic[K, V]):
     def delete(self, key: K) -> None:
         del self._mem_table[key]
 
-    def flush(self) -> None:
-        table = SSTable[K, V]()
-        # TODO handle metadata differently
-        table.flush(self._path, self._mem_table, metadata=(MetaType.VARCHAR, MetaType.VARCHAR))
+    def flush(self, metadata: Sequence[MetaType] = (MetaType.VARCHAR, MetaType.VARCHAR, MetaType.BOOL)) -> None:
+        table = SSTable[K, V](self._path, metadata)
+        # TODO handle metadata effectively
+        table.flush(self._mem_table)
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()
