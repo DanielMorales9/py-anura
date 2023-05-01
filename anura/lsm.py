@@ -218,9 +218,21 @@ class SSTable(Generic[K, V]):
         return None
 
 
+class MetaData:
+    def __init__(self, path: Path):
+        self._path = path / "meta.data"
+        # TODO parsing of complex metadata like: struct, array, fixed-length char, varchar...
+        with open(self._path) as f:
+            self._meta = f.read().split(",")
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._meta)
+
+
 class LSMTree(Generic[K, V]):
     def __init__(self, path: Path) -> None:
         self._path = path
+        self._meta = MetaData(self._path)
         self._mem_table = MemTable[K, V]()
         self._tables: List[SSTable[K, V]] = []
 
@@ -236,9 +248,8 @@ class LSMTree(Generic[K, V]):
     def delete(self, key: K) -> None:
         del self._mem_table[key]
 
-    def flush(self, metadata: Sequence[MetaType] = (MetaType.VARCHAR, MetaType.VARCHAR, MetaType.BOOL)) -> None:
-        # TODO handle metadata effectively
-        table = SSTable[K, V](self._path, metadata)
+    def flush(self) -> None:
+        table = SSTable[K, V](self._path, list(self._meta))
         table.flush(self._mem_table)
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()

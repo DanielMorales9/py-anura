@@ -8,6 +8,8 @@ from anura.lsm import LSMTree, MemNode, MemTable, SSTable, decode
 
 @pytest.fixture
 def my_lsm(tmp_path):
+    meta_data_path = tmp_path / "meta.data"
+    meta_data_path.write_text("VARCHAR,INT,BOOL")
     return LSMTree(tmp_path)
 
 
