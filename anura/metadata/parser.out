@@ -1,0 +1,126 @@
+Created by PLY version 3.11 (http://www.dabeaz.com/ply)
+
+Grammar
+
+Rule 0     S' -> expression
+Rule 1     expression -> ID ASSIGN TYPE
+Rule 2     expression -> expression COMMA expression
+Rule 3     expression -> LBRACE expression RBRACE
+
+Terminals, with rules where they appear
+
+ASSIGN               : 1
+COMMA                : 2
+ID                   : 1
+LBRACE               : 3
+RBRACE               : 3
+TYPE                 : 1
+error                : 
+
+Nonterminals, with rules where they appear
+
+expression           : 2 2 3 0
+
+Parsing method: LALR
+
+state 0
+
+    (0) S' -> . expression
+    (1) expression -> . ID ASSIGN TYPE
+    (2) expression -> . expression COMMA expression
+    (3) expression -> . LBRACE expression RBRACE
+
+    ID              shift and go to state 2
+    LBRACE          shift and go to state 3
+
+    expression                     shift and go to state 1
+
+state 1
+
+    (0) S' -> expression .
+    (2) expression -> expression . COMMA expression
+
+    COMMA           shift and go to state 4
+
+
+state 2
+
+    (1) expression -> ID . ASSIGN TYPE
+
+    ASSIGN          shift and go to state 5
+
+
+state 3
+
+    (3) expression -> LBRACE . expression RBRACE
+    (1) expression -> . ID ASSIGN TYPE
+    (2) expression -> . expression COMMA expression
+    (3) expression -> . LBRACE expression RBRACE
+
+    ID              shift and go to state 2
+    LBRACE          shift and go to state 3
+
+    expression                     shift and go to state 6
+
+state 4
+
+    (2) expression -> expression COMMA . expression
+    (1) expression -> . ID ASSIGN TYPE
+    (2) expression -> . expression COMMA expression
+    (3) expression -> . LBRACE expression RBRACE
+
+    ID              shift and go to state 2
+    LBRACE          shift and go to state 3
+
+    expression                     shift and go to state 7
+
+state 5
+
+    (1) expression -> ID ASSIGN . TYPE
+
+    TYPE            shift and go to state 8
+
+
+state 6
+
+    (3) expression -> LBRACE expression . RBRACE
+    (2) expression -> expression . COMMA expression
+
+    RBRACE          shift and go to state 9
+    COMMA           shift and go to state 4
+
+
+state 7
+
+    (2) expression -> expression COMMA expression .
+    (2) expression -> expression . COMMA expression
+
+  ! shift/reduce conflict for COMMA resolved as shift
+    $end            reduce using rule 2 (expression -> expression COMMA expression .)
+    RBRACE          reduce using rule 2 (expression -> expression COMMA expression .)
+    COMMA           shift and go to state 4
+
+  ! COMMA           [ reduce using rule 2 (expression -> expression COMMA expression .) ]
+
+
+state 8
+
+    (1) expression -> ID ASSIGN TYPE .
+
+    COMMA           reduce using rule 1 (expression -> ID ASSIGN TYPE .)
+    $end            reduce using rule 1 (expression -> ID ASSIGN TYPE .)
+    RBRACE          reduce using rule 1 (expression -> ID ASSIGN TYPE .)
+
+
+state 9
+
+    (3) expression -> LBRACE expression RBRACE .
+
+    COMMA           reduce using rule 3 (expression -> LBRACE expression RBRACE .)
+    $end            reduce using rule 3 (expression -> LBRACE expression RBRACE .)
+    RBRACE          reduce using rule 3 (expression -> LBRACE expression RBRACE .)
+
+WARNING: 
+WARNING: Conflicts:
+WARNING: 
+WARNING: shift/reduce conflict for COMMA in state 7 resolved as shift

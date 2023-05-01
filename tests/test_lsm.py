@@ -3,13 +3,13 @@ from unittest.mock import patch
 import pytest as pytest
 
 from anura.constants import MetaType
-from anura.lsm import LSMTree, MemNode, MemTable, SSTable, decode
+from anura.lsm import LSMTree, MemNode, MemTable, Metadata, SSTable, decode
 
 
 @pytest.fixture
 def my_lsm(tmp_path):
     meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text("VARCHAR,INT,BOOL")
+    meta_data_path.write_text("key=LONG,value=VARCHAR,tombstone=BOOL")
     return LSMTree(tmp_path)
 
 
@@ -57,7 +57,7 @@ def test_flush_lsm(my_lsm):
 
 
 @pytest.mark.parametrize(
-    "data, index, metadata",
+    "data, index, meta",
     [
         ([(i, i) for i in range(100)], [[0, 0], [50, (4 * 2 + 1) * 50]], (MetaType.LONG, MetaType.LONG, MetaType.BOOL)),
         (
@@ -87,17 +87,17 @@ def test_flush_lsm(my_lsm):
         ),
     ],
 )
-def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
+def test_flush_table(tmp_path, my_mem_table, data, index, meta):
     # fixture setup
     serial = 101
-    table = SSTable(tmp_path, metadata, serial=serial)
+    table = SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=serial)
     for k, v in data:
         my_mem_table[k] = v
 
     # test
     table.flush(my_mem_table)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
-        decoded_block = [MemNode(*el) for el in decode(f.read(), metadata)]
+        decoded_block = [MemNode(*el) for el in decode(f.read(), meta)]
         assert len(decoded_block) == 100
         assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
         assert all(not record.is_deleted for record in decoded_block)
@@ -107,10 +107,17 @@ def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
         assert decoded_index == index
 
 
+def setup_metadata(tmp_path, meta):
+    meta_data_path = tmp_path / "meta.data"
+    meta_data_path.write_text(f"key={meta[0]},value={meta[1]},tombstone={meta[2]}")
+    metadata = Metadata(tmp_path)
+    return metadata
+
+
 def test_find_lsm(my_lsm, tmp_path):
     # fixture setup
-    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
-    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
+    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm._find("key") is None
@@ -132,7 +139,8 @@ def test_find_lsm(my_lsm, tmp_path):
 )
 def test_find_table(tmp_path, my_mem_table, key, value):
     # fixture setup
-    table = SSTable(tmp_path, (MetaType.LONG, MetaType.LONG, MetaType.BOOL), serial=101)
+    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    table = SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)
     for i in range(100):
         my_mem_table[i] = i
     table.flush(my_mem_table)
@@ -146,8 +154,8 @@ def test_find_table(tmp_path, my_mem_table, key, value):
 
 def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
     # fixture setup
-    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
-    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
+    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm.get("key") is None

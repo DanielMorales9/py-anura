@@ -6,6 +6,7 @@ from typing import Any, Generator, Generic, Iterator, List, Optional, Sequence, 
 
 from anura.btree import BinarySearchTree, Comparable
 from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT, MetaConfig, MetaType
+from anura.metadata.parser import parse
 from anura.utils import chunk
 
 K = TypeVar("K")
@@ -162,16 +163,35 @@ def pack(
     return res
 
 
+class Metadata:
+    def __init__(self, path: Path):
+        self._path = path / "meta.data"
+        # TODO parsing of complex metadata like: struct, array, fixed-length char, varchar...
+        with open(self._path) as f:
+            self._meta = parse(f.read())
+
+    @property
+    def key_type(self) -> Any:
+        return self._meta["key"]
+
+    @property
+    def value_type(self) -> Any:
+        return self._meta["value"]
+
+    def __iter__(self) -> Iterator[MetaType]:
+        return iter((self.key_type, self.value_type, MetaType.BOOL))
+
+
 WRITE_MODE = "wb"
 
 
 class SSTable(Generic[K, V]):
     _offset_meta = MetaType.LONG
 
-    def __init__(self, path: Path, metadata: Sequence[MetaType], serial: Optional[int] = None):
+    def __init__(self, path: Path, metadata: Metadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []
-        self._metadata = metadata
-        self._index_meta = (metadata[0], self._offset_meta)
+        self._metadata = list(metadata)
+        self._index_meta = (metadata.key_type, self._offset_meta)
         self._serial = serial or int(datetime.utcnow().timestamp())
         self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
         self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
@@ -218,21 +238,10 @@ class SSTable(Generic[K, V]):
         return None
 
 
-class MetaData:
-    def __init__(self, path: Path):
-        self._path = path / "meta.data"
-        # TODO parsing of complex metadata like: struct, array, fixed-length char, varchar...
-        with open(self._path) as f:
-            self._meta = f.read().split(",")
-
-    def __iter__(self) -> Iterator[Any]:
-        return iter(self._meta)
-
-
 class LSMTree(Generic[K, V]):
     def __init__(self, path: Path) -> None:
         self._path = path
-        self._meta = MetaData(self._path)
+        self._meta = Metadata(self._path)
         self._mem_table = MemTable[K, V]()
         self._tables: List[SSTable[K, V]] = []
 
@@ -249,7 +258,7 @@ class LSMTree(Generic[K, V]):
         del self._mem_table[key]
 
     def flush(self) -> None:
-        table = SSTable[K, V](self._path, list(self._meta))
+        table = SSTable[K, V](self._path, self._meta)
         table.flush(self._mem_table)
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()

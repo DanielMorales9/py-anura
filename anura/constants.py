@@ -27,10 +27,6 @@ MetaConfig = {
         "struct_symbol": "h",
         "base_size": 2,
     },
-    MetaType.UNSIGNED_SHORT: {
-        "struct_symbol": "H",
-        "base_size": 2,
-    },
     MetaType.INT: {
         "struct_symbol": "i",
         "base_size": 4,
@@ -50,6 +46,10 @@ MetaConfig = {
     MetaType.BOOL: {
         "struct_symbol": "?",
         "base_size": 1,
+    },
+    MetaType.UNSIGNED_SHORT: {
+        "struct_symbol": "H",
+        "base_size": 2,
     },
 }
 SSTABLE_EXT = "sst"
