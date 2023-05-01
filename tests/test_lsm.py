@@ -73,6 +73,16 @@ def test_flush_lsm(my_lsm):
             [[0.0, 0], [50.0, (8 + (5 + 2) + 1) * 50]],
             (MetaType.DOUBLE, MetaType.VARCHAR, MetaType.BOOL),
         ),
+        (
+            [(float(i), i) for i in range(100)],
+            [[0.0, 0], [50.0, (4 + 4 + 1) * 50]],
+            (MetaType.FLOAT, MetaType.INT, MetaType.BOOL),
+        ),
+        (
+            [(i, float(i)) for i in range(100)],
+            [[0, 0], [50, (2 + 8 + 1) * 50]],
+            (MetaType.SHORT, MetaType.DOUBLE, MetaType.BOOL),
+        ),
     ],
 )
 def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
@@ -130,3 +140,13 @@ def test_find_table(tmp_path, my_mem_table, key, value):
         assert table.find(key) == MemNode(key, value)
     else:
         assert table.find(key) is None
+
+
+def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
+    # fixture setup
+    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
+    # test
+    with patch.object(SSTable, "find") as mock_method:
+        assert my_lsm.get("key") is None
+        mock_method.assert_called_once_with("key")

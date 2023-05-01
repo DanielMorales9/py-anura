@@ -6,7 +6,10 @@ DEFAULT_CHARSET = "utf-8"
 
 class MetaType(str, Enum):
     VARCHAR = "VARCHAR"
+    SHORT = "SHORT"
+    INT = "INT"
     LONG = "LONG"
+    FLOAT = "FLOAT"
     DOUBLE = "DOUBLE"
     BOOL = "BOOL"
     UNSIGNED_SHORT = "UNSIGNED_SHORT"
@@ -20,8 +23,24 @@ MetaConfig = {
         "charset": DEFAULT_CHARSET,
         "length_type": MetaType.UNSIGNED_SHORT,
     },
+    MetaType.SHORT: {
+        "struct_symbol": "h",
+        "base_size": 2,
+    },
+    MetaType.UNSIGNED_SHORT: {
+        "struct_symbol": "H",
+        "base_size": 2,
+    },
+    MetaType.INT: {
+        "struct_symbol": "i",
+        "base_size": 4,
+    },
     MetaType.LONG: {
         "struct_symbol": "l",
+        "base_size": 4,
+    },
+    MetaType.FLOAT: {
+        "struct_symbol": "f",
         "base_size": 4,
     },
     MetaType.DOUBLE: {
@@ -31,10 +50,6 @@ MetaConfig = {
     MetaType.BOOL: {
         "struct_symbol": "?",
         "base_size": 1,
-    },
-    MetaType.UNSIGNED_SHORT: {
-        "struct_symbol": "H",
-        "base_size": 2,
     },
 }
 SSTABLE_EXT = "sst"

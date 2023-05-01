@@ -225,7 +225,10 @@ class LSMTree(Generic[K, V]):
         self._tables: List[SSTable[K, V]] = []
 
     def get(self, key: K) -> Optional[V]:
-        return self._mem_table[key]
+        value = self._mem_table[key]
+        if not value:
+            return self._find(key)
+        return value
 
     def put(self, key: K, value: V) -> None:
         self._mem_table[key] = value
