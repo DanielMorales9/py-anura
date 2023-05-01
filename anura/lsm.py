@@ -181,6 +181,7 @@ class SSTable(Generic[K, V]):
         with open(self._table_path, "wb") as f:
             for block in chunk(table, BLOCK_SIZE):
                 self._index.append((block[0].key, offset))
+                # TODO compress records
                 for record in block:
                     e_record = encode(record, self._metadata)
                     f.write(e_record)
@@ -208,6 +209,7 @@ class SSTable(Generic[K, V]):
         with open(self._table_path, "rb") as f:
             f.seek(start)
             raw = f.read(length)
+            # TODO: decompress
             block = decode(raw, self._metadata)
             j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
             if block[j][0] == key:
