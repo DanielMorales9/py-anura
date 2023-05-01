@@ -8,7 +8,7 @@ from anura.lsm import LSMTree, MemNode, MemTable, SSTable, decode
 
 @pytest.fixture
 def my_lsm(tmp_path):
-    return LSMTree(tmp_path / "data" / "base")
+    return LSMTree(tmp_path)
 
 
 @pytest.fixture
@@ -44,20 +44,14 @@ def test_delete_mem_table(my_mem_table):
 
 
 def test_flush_lsm(my_lsm):
+    # fixture setup
     my_lsm.put("key", "value")
 
+    # test
     with patch.object(SSTable, "flush") as mock_method:
         my_lsm.flush()
         assert my_lsm._mem_table._btree.size == 0
         mock_method.assert_called()
-
-
-def test_find_lsm(my_lsm, tmp_path):
-    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
-    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
-    with patch.object(SSTable, "find") as mock_method:
-        assert my_lsm._find("key") is None
-        mock_method.assert_called_once_with("key")
 
 
 @pytest.mark.parametrize(
@@ -82,11 +76,13 @@ def test_find_lsm(my_lsm, tmp_path):
     ],
 )
 def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
+    # fixture setup
     serial = 101
     table = SSTable(tmp_path, metadata, serial=serial)
     for k, v in data:
         my_mem_table[k] = v
 
+    # test
     table.flush(my_mem_table)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
         decoded_block = [MemNode(*el) for el in decode(f.read(), metadata)]
@@ -97,3 +93,40 @@ def test_flush_table(tmp_path, my_mem_table, data, index, metadata):
     with open(tmp_path / f"{serial}.spx", "rb") as f:
         decoded_index = list(decode(f.read(), table._index_meta))
         assert decoded_index == index
+
+
+def test_find_lsm(my_lsm, tmp_path):
+    # fixture setup
+    metadata = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    my_lsm._tables = [SSTable(tmp_path, metadata, serial=101)]
+    # test
+    with patch.object(SSTable, "find") as mock_method:
+        assert my_lsm._find("key") is None
+        mock_method.assert_called_once_with("key")
+
+
+@pytest.mark.parametrize(
+    "key, value",
+    [
+        (5, 5),
+        (0, 0),
+        (49, 49),
+        (51, 51),
+        (66, 66),
+        (99, 99),
+        (-1, None),
+        (100, None),
+    ],
+)
+def test_find_table(tmp_path, my_mem_table, key, value):
+    # fixture setup
+    table = SSTable(tmp_path, (MetaType.LONG, MetaType.LONG, MetaType.BOOL), serial=101)
+    for i in range(100):
+        my_mem_table[i] = i
+    table.flush(my_mem_table)
+
+    # test
+    if value is not None:
+        assert table.find(key) == MemNode(key, value)
+    else:
+        assert table.find(key) is None

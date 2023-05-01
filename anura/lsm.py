@@ -1,4 +1,5 @@
 import struct
+from bisect import bisect
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
@@ -95,15 +96,17 @@ class MemTable(Generic[K, V]):
             yield node.data
 
 
-def decode(block: bytes, metadata: Sequence[MetaType]) -> Generator[Sequence[Any], None, None]:
+def decode(block: bytes, metadata: Sequence[MetaType]) -> Sequence[Any]:
     i = 0
+    res = []
     while i < len(block):
         record = [None] * len(metadata)
         for j, metatype in enumerate(metadata):
             el, offset = unpack(block[i:], **MetaConfig[metatype])
             record[j] = el
             i += offset
-        yield record
+        res.append(record)
+    return res
 
 
 def encode(record: Sequence[Any], metadata: Sequence[MetaType]) -> bytes:
@@ -167,7 +170,6 @@ class SSTable(Generic[K, V]):
 
     def __init__(self, path: Path, metadata: Sequence[MetaType], serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []
-        self._path = path
         self._metadata = metadata
         self._index_meta = (metadata[0], self._offset_meta)
         self._serial = serial or int(datetime.utcnow().timestamp())
@@ -192,6 +194,25 @@ class SSTable(Generic[K, V]):
                 f.write(encode(el, self._index_meta))
 
     def find(self, key: K) -> Optional[MemNode[K, V]]:
+        # TODO consider using mmap
+        i = bisect(self._index, key, key=lambda x: x[0])  # type: ignore[call-overload]
+        if i == 0:
+            return None
+
+        start = self._index[i - 1][1]
+        length = -1
+        if i < len(self._index):
+            end = self._index[i][1]
+            length = end - start
+
+        with open(self._table_path, "rb") as f:
+            f.seek(start)
+            raw = f.read(length)
+            block = decode(raw, self._metadata)
+            j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
+            if block[j][0] == key:
+                return MemNode[K, V](*block[j])
+
         return None
 
 
