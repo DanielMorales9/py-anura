@@ -4,18 +4,20 @@ from ply.lex import lex
 from ply.yacc import yacc
 
 # All tokens must be named in advance.
-from anura.constants import MetaType
+from anura.constants import META_CONFIG, PrimitiveType
 
 # --- Tokenizer
 
-tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE")
+tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE")
 
 # Token matching rules are written as regex
 t_LBRACE = r"\{"
 t_RBRACE = r"\}"
+t_LSQUARE = r"\["
+t_RSQUARE = r"\]"
 t_ASSIGN = r"="
 t_COMMA = r","
-t_TYPE = r"|".join(MetaType)
+t_TYPE = r"|".join(PrimitiveType)
 t_ID = r"[a-zA-Z_][a-zA-Z_0-9]*"
 
 
@@ -37,9 +39,26 @@ lexer = lex()
 
 def p_expression(p):
     """
-    expression : ID ASSIGN TYPE
+    expression : ID ASSIGN type
     """
-    p[0] = ("assign", p[2], p[1], p[3])
+    p[0] = ("assign", p[1], p[3])
+
+
+def p_type(p):
+    """
+    type : TYPE
+    """
+    p[0] = META_CONFIG[p[1]]
+
+
+def p_type_array(p):
+    """
+    type : TYPE LSQUARE RSQUARE
+    """
+    inner_type = META_CONFIG[p[1]]
+    array_type = META_CONFIG["ARRAY"]
+    array_type.update({"inner_type": inner_type})
+    p[0] = array_type
 
 
 def p_expression_comma(p):
@@ -60,14 +79,15 @@ def p_error(p):
 parser = yacc()
 
 
-def parse_ast(ast: Sequence[Any]) -> Dict[str, Any]:
+def parse_ast(ast: Sequence[Any]) -> Any:
+    # TODO change parsing strategy
     expr = ast[0]
     if expr == "group":
         left = parse_ast(ast[1])
         right = parse_ast(ast[2])
         return {**left, **right}
     elif expr == "assign":
-        return {ast[2]: ast[3]}
+        return {ast[1]: ast[2]}
     else:
         raise TypeError(f"Unsopported expr {expr}")
 

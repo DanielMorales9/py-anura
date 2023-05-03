@@ -2,9 +2,12 @@ from enum import Enum
 
 BLOCK_SIZE = 50
 DEFAULT_CHARSET = "utf-8"
+SSTABLE_EXT = "sst"
+SPARSE_IDX_EXT = "spx"
 
 
-class MetaType(str, Enum):
+class PrimitiveType(str, Enum):
+    # TODO is varchar primitive
     VARCHAR = "VARCHAR"
     SHORT = "SHORT"
     INT = "INT"
@@ -15,42 +18,50 @@ class MetaType(str, Enum):
     UNSIGNED_SHORT = "UNSIGNED_SHORT"
 
 
-MetaConfig = {
-    MetaType.VARCHAR: {
+class ComplexType(str, Enum):
+    ARRAY = "ARRAY"
+
+
+META_CONFIG = {
+    PrimitiveType.VARCHAR: {
         "struct_symbol": "s",
         "base_size": 1,
         "is_container": True,
         "charset": DEFAULT_CHARSET,
-        "length_type": MetaType.UNSIGNED_SHORT,
+        "length_type": PrimitiveType.UNSIGNED_SHORT,
     },
-    MetaType.SHORT: {
+    PrimitiveType.SHORT: {
         "struct_symbol": "h",
         "base_size": 2,
     },
-    MetaType.INT: {
+    PrimitiveType.INT: {
         "struct_symbol": "i",
         "base_size": 4,
     },
-    MetaType.LONG: {
+    PrimitiveType.LONG: {
         "struct_symbol": "l",
         "base_size": 4,
     },
-    MetaType.FLOAT: {
+    PrimitiveType.FLOAT: {
         "struct_symbol": "f",
         "base_size": 4,
     },
-    MetaType.DOUBLE: {
+    PrimitiveType.DOUBLE: {
         "struct_symbol": "d",
         "base_size": 8,
     },
-    MetaType.BOOL: {
+    PrimitiveType.BOOL: {
         "struct_symbol": "?",
         "base_size": 1,
     },
-    MetaType.UNSIGNED_SHORT: {
+    PrimitiveType.UNSIGNED_SHORT: {
         "struct_symbol": "H",
         "base_size": 2,
     },
+    ComplexType.ARRAY: {
+        "struct_symbol": "x",
+        "base_size": 0,
+        "is_container": True,
+        "length_type": PrimitiveType.UNSIGNED_SHORT,
+    },
 }
-SSTABLE_EXT = "sst"
-SPARSE_IDX_EXT = "spx"

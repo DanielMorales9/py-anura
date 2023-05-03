@@ -3,32 +3,37 @@ Created by PLY version 3.11 (http://www.dabeaz.com/ply)
 Grammar
 
 Rule 0     S' -> expression
-Rule 1     expression -> ID ASSIGN TYPE
-Rule 2     expression -> expression COMMA expression
-Rule 3     expression -> LBRACE expression RBRACE
+Rule 1     expression -> ID ASSIGN type
+Rule 2     type -> TYPE
+Rule 3     type -> TYPE LSQUARE RSQUARE
+Rule 4     expression -> expression COMMA expression
+Rule 5     expression -> LBRACE expression RBRACE
 
 Terminals, with rules where they appear
 
 ASSIGN               : 1
-COMMA                : 2
+COMMA                : 4
 ID                   : 1
-LBRACE               : 3
-RBRACE               : 3
-TYPE                 : 1
+LBRACE               : 5
+LSQUARE              : 3
+RBRACE               : 5
+RSQUARE              : 3
+TYPE                 : 2 3
 error                : 
 
 Nonterminals, with rules where they appear
 
-expression           : 2 2 3 0
+expression           : 4 4 5 0
+type                 : 1
 
 Parsing method: LALR
 
 state 0
 
     (0) S' -> . expression
-    (1) expression -> . ID ASSIGN TYPE
-    (2) expression -> . expression COMMA expression
-    (3) expression -> . LBRACE expression RBRACE
+    (1) expression -> . ID ASSIGN type
+    (4) expression -> . expression COMMA expression
+    (5) expression -> . LBRACE expression RBRACE
 
     ID              shift and go to state 2
     LBRACE          shift and go to state 3
@@ -38,24 +43,24 @@ state 0
 state 1
 
     (0) S' -> expression .
-    (2) expression -> expression . COMMA expression
+    (4) expression -> expression . COMMA expression
 
     COMMA           shift and go to state 4
 
 
 state 2
 
-    (1) expression -> ID . ASSIGN TYPE
+    (1) expression -> ID . ASSIGN type
 
     ASSIGN          shift and go to state 5
 
 
 state 3
 
-    (3) expression -> LBRACE . expression RBRACE
-    (1) expression -> . ID ASSIGN TYPE
-    (2) expression -> . expression COMMA expression
-    (3) expression -> . LBRACE expression RBRACE
+    (5) expression -> LBRACE . expression RBRACE
+    (1) expression -> . ID ASSIGN type
+    (4) expression -> . expression COMMA expression
+    (5) expression -> . LBRACE expression RBRACE
 
     ID              shift and go to state 2
     LBRACE          shift and go to state 3
@@ -64,10 +69,10 @@ state 3
 
 state 4
 
-    (2) expression -> expression COMMA . expression
-    (1) expression -> . ID ASSIGN TYPE
-    (2) expression -> . expression COMMA expression
-    (3) expression -> . LBRACE expression RBRACE
+    (4) expression -> expression COMMA . expression
+    (1) expression -> . ID ASSIGN type
+    (4) expression -> . expression COMMA expression
+    (5) expression -> . LBRACE expression RBRACE
 
     ID              shift and go to state 2
     LBRACE          shift and go to state 3
@@ -76,49 +81,79 @@ state 4
 
 state 5
 
-    (1) expression -> ID ASSIGN . TYPE
+    (1) expression -> ID ASSIGN . type
+    (2) type -> . TYPE
+    (3) type -> . TYPE LSQUARE RSQUARE
 
-    TYPE            shift and go to state 8
+    TYPE            shift and go to state 9
 
+    type                           shift and go to state 8
 
 state 6
 
-    (3) expression -> LBRACE expression . RBRACE
-    (2) expression -> expression . COMMA expression
+    (5) expression -> LBRACE expression . RBRACE
+    (4) expression -> expression . COMMA expression
 
-    RBRACE          shift and go to state 9
+    RBRACE          shift and go to state 10
     COMMA           shift and go to state 4
 
 
 state 7
 
-    (2) expression -> expression COMMA expression .
-    (2) expression -> expression . COMMA expression
+    (4) expression -> expression COMMA expression .
+    (4) expression -> expression . COMMA expression
 
   ! shift/reduce conflict for COMMA resolved as shift
-    $end            reduce using rule 2 (expression -> expression COMMA expression .)
-    RBRACE          reduce using rule 2 (expression -> expression COMMA expression .)
+    $end            reduce using rule 4 (expression -> expression COMMA expression .)
+    RBRACE          reduce using rule 4 (expression -> expression COMMA expression .)
     COMMA           shift and go to state 4
 
-  ! COMMA           [ reduce using rule 2 (expression -> expression COMMA expression .) ]
+  ! COMMA           [ reduce using rule 4 (expression -> expression COMMA expression .) ]
 
 
 state 8
 
-    (1) expression -> ID ASSIGN TYPE .
+    (1) expression -> ID ASSIGN type .
 
-    COMMA           reduce using rule 1 (expression -> ID ASSIGN TYPE .)
-    $end            reduce using rule 1 (expression -> ID ASSIGN TYPE .)
-    RBRACE          reduce using rule 1 (expression -> ID ASSIGN TYPE .)
+    COMMA           reduce using rule 1 (expression -> ID ASSIGN type .)
+    $end            reduce using rule 1 (expression -> ID ASSIGN type .)
+    RBRACE          reduce using rule 1 (expression -> ID ASSIGN type .)
 
 
 state 9
 
-    (3) expression -> LBRACE expression RBRACE .
+    (2) type -> TYPE .
+    (3) type -> TYPE . LSQUARE RSQUARE
 
-    COMMA           reduce using rule 3 (expression -> LBRACE expression RBRACE .)
-    $end            reduce using rule 3 (expression -> LBRACE expression RBRACE .)
-    RBRACE          reduce using rule 3 (expression -> LBRACE expression RBRACE .)
+    COMMA           reduce using rule 2 (type -> TYPE .)
+    $end            reduce using rule 2 (type -> TYPE .)
+    RBRACE          reduce using rule 2 (type -> TYPE .)
+    LSQUARE         shift and go to state 11
+
+
+state 10
+
+    (5) expression -> LBRACE expression RBRACE .
+
+    COMMA           reduce using rule 5 (expression -> LBRACE expression RBRACE .)
+    $end            reduce using rule 5 (expression -> LBRACE expression RBRACE .)
+    RBRACE          reduce using rule 5 (expression -> LBRACE expression RBRACE .)
+
+
+state 11
+
+    (3) type -> TYPE LSQUARE . RSQUARE
+
+    RSQUARE         shift and go to state 12
+
+
+state 12
+
+    (3) type -> TYPE LSQUARE RSQUARE .
+
+    COMMA           reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
+    $end            reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
+    RBRACE          reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
 
 WARNING: 
 WARNING: Conflicts:

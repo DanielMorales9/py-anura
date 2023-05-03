@@ -1,9 +1,12 @@
+from itertools import product
 from unittest.mock import patch
 
 import pytest as pytest
 
-from anura.constants import MetaType
+from anura.constants import META_CONFIG, ComplexType, PrimitiveType
 from anura.lsm import LSMTree, MemNode, MemTable, Metadata, SSTable, decode
+
+TEST_META = (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL)
 
 
 @pytest.fixture
@@ -59,45 +62,55 @@ def test_flush_lsm(my_lsm):
 @pytest.mark.parametrize(
     "data, index, meta",
     [
-        ([(i, i) for i in range(100)], [[0, 0], [50, (4 * 2 + 1) * 50]], (MetaType.LONG, MetaType.LONG, MetaType.BOOL)),
+        (
+            [(i, i) for i in range(100)],
+            [[0, 0], [50, (4 * 2 + 1) * 50]],
+            (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL),
+        ),
         (
             [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
             [["key00", 0], ["key50", ((5 + 2) * 2 + 1) * 50]],
-            (MetaType.VARCHAR, MetaType.VARCHAR, MetaType.BOOL),
+            (PrimitiveType.VARCHAR, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(i, f"val{i:02d}") for i in range(100)],
             [[0, 0], [50, (4 + (5 + 2) + 1) * 50]],
-            (MetaType.LONG, MetaType.VARCHAR, MetaType.BOOL),
+            (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(float(i), f"val{i:02d}") for i in range(100)],
             [[0.0, 0], [50.0, (8 + (5 + 2) + 1) * 50]],
-            (MetaType.DOUBLE, MetaType.VARCHAR, MetaType.BOOL),
+            (PrimitiveType.DOUBLE, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(float(i), i) for i in range(100)],
             [[0.0, 0], [50.0, (4 + 4 + 1) * 50]],
-            (MetaType.FLOAT, MetaType.INT, MetaType.BOOL),
+            (PrimitiveType.FLOAT, PrimitiveType.INT, PrimitiveType.BOOL),
         ),
         (
             [(i, float(i)) for i in range(100)],
             [[0, 0], [50, (2 + 8 + 1) * 50]],
-            (MetaType.SHORT, MetaType.DOUBLE, MetaType.BOOL),
+            (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
+        ),
+        (
+            [(i, [i, i]) for i in range(100)],
+            [[0, 0], [50, (4 + (2 + (4 * 2)) + 1) * 50]],
+            (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
         ),
     ],
 )
 def test_flush_table(tmp_path, my_mem_table, data, index, meta):
     # fixture setup
     serial = 101
-    table = SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=serial)
+    metadata = setup_metadata(tmp_path, meta)
+    table = SSTable(tmp_path, metadata, serial=serial)
     for k, v in data:
         my_mem_table[k] = v
 
     # test
     table.flush(my_mem_table)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
-        decoded_block = [MemNode(*el) for el in decode(f.read(), meta)]
+        decoded_block = [MemNode(*el) for el in decode(f.read(), list(metadata))]
         assert len(decoded_block) == 100
         assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
         assert all(not record.is_deleted for record in decoded_block)
@@ -109,14 +122,16 @@ def test_flush_table(tmp_path, my_mem_table, data, index, meta):
 
 def setup_metadata(tmp_path, meta):
     meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text(f"key={meta[0]},value={meta[1]},tombstone={meta[2]}")
+    value_type = f"{meta[1][1]}[]" if isinstance(meta[1], tuple) else meta[1]
+
+    meta_data_path.write_text(f"key={meta[0]},value={value_type},tombstone={meta[2]}")
     metadata = Metadata(tmp_path)
     return metadata
 
 
 def test_find_lsm(my_lsm, tmp_path):
     # fixture setup
-    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
+    meta = (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL)
     my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
@@ -139,8 +154,7 @@ def test_find_lsm(my_lsm, tmp_path):
 )
 def test_find_table(tmp_path, my_mem_table, key, value):
     # fixture setup
-    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
-    table = SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)
+    table = SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)
     for i in range(100):
         my_mem_table[i] = i
     table.flush(my_mem_table)
@@ -154,9 +168,25 @@ def test_find_table(tmp_path, my_mem_table, key, value):
 
 def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
     # fixture setup
-    meta = (MetaType.LONG, MetaType.LONG, MetaType.BOOL)
-    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)]
+    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm.get("key") is None
         mock_method.assert_called_once_with("key")
+
+
+@pytest.mark.parametrize("meta", product(PrimitiveType, repeat=2))
+def test_meta(tmp_path, meta):
+    metadata = setup_metadata(tmp_path, (*meta, PrimitiveType.BOOL))
+    assert metadata.key_type["struct_symbol"] == META_CONFIG[meta[0]]["struct_symbol"]
+    assert metadata.value_type["struct_symbol"] == META_CONFIG[meta[1]]["struct_symbol"]
+
+
+def test_meta_array(tmp_path):
+    meta_data_path = tmp_path / "meta.data"
+    meta_data_path.write_text("key=VARCHAR[],value=VARCHAR[],tombstone=BOOL")
+    metadata = Metadata(tmp_path)
+    # TODO switch to dataclasses
+    assert isinstance(metadata._meta["key"], dict)
+    assert isinstance(metadata._meta["value"], dict)
+    assert isinstance(metadata._meta["tombstone"], dict)

@@ -2,10 +2,10 @@ import struct
 from bisect import bisect
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
 
 from anura.btree import BinarySearchTree, Comparable
-from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT, MetaConfig, MetaType
+from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, PrimitiveType
 from anura.metadata.parser import parse
 from anura.utils import chunk
 
@@ -97,69 +97,91 @@ class MemTable(Generic[K, V]):
             yield node.data
 
 
-def decode(block: bytes, metadata: Sequence[MetaType]) -> Sequence[Any]:
+def decode(block: bytes, metadata: Sequence[Dict]) -> Sequence[Any]:
     i = 0
     res = []
     while i < len(block):
         record = [None] * len(metadata)
         for j, metatype in enumerate(metadata):
-            el, offset = unpack(block[i:], **MetaConfig[metatype])
+            el, offset = unpack(block[i:], **metatype)
             record[j] = el
             i += offset
         res.append(record)
     return res
 
 
-def encode(record: Sequence[Any], metadata: Sequence[MetaType]) -> bytes:
+def encode(record: Sequence[Any], metadata: Sequence[Dict]) -> bytes:
     acc = b""
-    for el, meta in zip(record, metadata):
-        acc += pack(el, **MetaConfig[meta])
+    for el, metatype in zip(record, metadata):
+        acc += pack(el, **metatype)
     return acc
 
 
 def unpack(
     block: bytes,
-    struct_symbol: Any,
-    base_size: Any,
-    is_container: Any = False,
-    charset: Any = None,
-    length_type: Any = None,
+    struct_symbol: str,
+    base_size: int,
+    is_container: Optional[bool] = False,
+    charset: Optional[str] = None,
+    length_type: Optional[str] = None,
+    inner_type: Optional[Dict] = None,
     **kwargs: Any,
 ) -> Tuple[Any, int]:
     start, offset, size = 0, base_size, 1
-    if is_container:
-        size, offset = unpack(block[start:], **MetaConfig[length_type])
+
+    # TODO refactor
+    if is_container and length_type:
+        size, offset = unpack(block[start:], **META_CONFIG[length_type])  # type: ignore[arg-type]
         start, offset = start + offset, start + offset + base_size * size
-    res = struct.unpack(f">{size}{struct_symbol}", block[start:offset])[0]
-    if charset:
-        res = res.decode(charset)
+
+    if inner_type:
+        i = 0
+        res = []
+        while i < size:
+            inner, offset = unpack(block[start:], **inner_type)
+            res.append(inner)
+            i += 1
+            start += offset
+        offset = start
+    else:
+        res = struct.unpack(f">{size}{struct_symbol}", block[start:offset])[0]
+
+        if charset:
+            res = res.decode(charset)  # type: ignore[attr-defined]
     return res, offset
 
 
 def pack(
     field: Any,
-    struct_symbol: Any,
-    is_container: Any = False,
-    charset: Any = None,
-    length_type: Any = None,
+    struct_symbol: str,
+    is_container: Optional[bool] = False,
+    charset: Optional[str] = None,
+    length_type: Optional[str] = None,
+    inner_type: Optional[Dict] = None,
     **kwargs: Any,
 ) -> bytes:
     size = 1
     args = []
     length_symbol = ""
 
+    if charset:
+        field = field.encode(charset)
+
+    # TODO refactor
     if length_type:
-        length_symbol = MetaConfig[length_type]["struct_symbol"]  # type: ignore[assignment]
+        length_symbol = str(META_CONFIG[length_type]["struct_symbol"])
 
     if is_container:
         size = len(field)
         args.append(size)
 
-    if charset:
-        field = field.encode(charset)
-
-    args.append(field)
-    res = struct.pack(f">{length_symbol}{size}{struct_symbol}", *args)
+    if inner_type:
+        res = struct.pack(f">{length_symbol}", size)
+        for el in field:
+            res += pack(el, **inner_type)
+    else:
+        args.append(field)
+        res = struct.pack(f">{length_symbol}{size}{struct_symbol}", *args)
     return res
 
 
@@ -178,15 +200,20 @@ class Metadata:
     def value_type(self) -> Any:
         return self._meta["value"]
 
-    def __iter__(self) -> Iterator[MetaType]:
-        return iter((self.key_type, self.value_type, MetaType.BOOL))
+    @property
+    def tombstone_type(self) -> Any:
+        return self._meta["tombstone"]
+
+    def __iter__(self) -> Iterator[Dict]:
+        return iter((self.key_type, self.value_type, self.tombstone_type))
 
 
 WRITE_MODE = "wb"
 
 
 class SSTable(Generic[K, V]):
-    _offset_meta = MetaType.LONG
+    # TODO refactor MetaConfig(PrimitiveType) approach
+    _offset_meta = META_CONFIG[PrimitiveType.LONG]
 
     def __init__(self, path: Path, metadata: Metadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []

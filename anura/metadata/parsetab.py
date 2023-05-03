@@ -6,8 +6,8 @@ _tabversion = "3.10"
 _lr_method = "LALR"
 
 _lr_signature = (
-    "ASSIGN COMMA ID LBRACE RBRACE TYPE\n    expression : ID ASSIGN TYPE\n    expression : expression COMMA"
-    " expressionexpression : LBRACE expression RBRACE"
+    "ASSIGN COMMA ID LBRACE LSQUARE RBRACE RSQUARE TYPE\n    expression : ID ASSIGN type\n    \n    type : TYPE\n    \n"
+    "    type : TYPE LSQUARE RSQUARE\n    expression : expression COMMA expressionexpression : LBRACE expression RBRACE"
 )
 
 _lr_action_items = {
@@ -41,11 +41,15 @@ _lr_action_items = {
             7,
             8,
             9,
+            10,
+            12,
         ],
         [
             0,
-            -2,
+            -4,
             -1,
+            -2,
+            -5,
             -3,
         ],
     ),
@@ -56,12 +60,16 @@ _lr_action_items = {
             7,
             8,
             9,
+            10,
+            12,
         ],
         [
             4,
             4,
             4,
             -1,
+            -2,
+            -5,
             -3,
         ],
     ),
@@ -78,7 +86,7 @@ _lr_action_items = {
             5,
         ],
         [
-            8,
+            9,
         ],
     ),
     "RBRACE": (
@@ -87,12 +95,32 @@ _lr_action_items = {
             7,
             8,
             9,
+            10,
+            12,
         ],
         [
-            9,
-            -2,
+            10,
+            -4,
             -1,
+            -2,
+            -5,
             -3,
+        ],
+    ),
+    "LSQUARE": (
+        [
+            9,
+        ],
+        [
+            11,
+        ],
+    ),
+    "RSQUARE": (
+        [
+            11,
+        ],
+        [
+            12,
         ],
     ),
 }
@@ -118,6 +146,14 @@ _lr_goto_items = {
             7,
         ],
     ),
+    "type": (
+        [
+            5,
+        ],
+        [
+            8,
+        ],
+    ),
 }
 
 _lr_goto = {}
@@ -129,7 +165,9 @@ for _k, _v in _lr_goto_items.items():
 del _lr_goto_items
 _lr_productions = [
     ("S' -> expression", "S'", 1, None, None, None),
-    ("expression -> ID ASSIGN TYPE", "expression", 3, "p_expression", "metadata.py", 43),
-    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "metadata.py", 48),
-    ("expression -> LBRACE expression RBRACE", "expression", 3, "p_expression_group", "metadata.py", 53),
+    ("expression -> ID ASSIGN type", "expression", 3, "p_expression", "parser.py", 42),
+    ("type -> TYPE", "type", 1, "p_type", "parser.py", 49),
+    ("type -> TYPE LSQUARE RSQUARE", "type", 3, "p_type_array", "parser.py", 56),
+    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "parser.py", 62),
+    ("expression -> LBRACE expression RBRACE", "expression", 3, "p_expression_group", "parser.py", 67),
 ]
