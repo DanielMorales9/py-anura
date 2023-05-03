@@ -93,6 +93,7 @@ def test_flush_lsm(my_lsm):
             (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
         ),
         (
+            # TODO simplify encoding for primitives
             [(i, [i, i]) for i in range(100)],
             [[0, 0], [50, (4 + (2 + (4 * 2)) + 1) * 50]],
             (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
