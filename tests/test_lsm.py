@@ -1,4 +1,5 @@
-from itertools import product
+from gzip import decompress
+from itertools import product, zip_longest
 from unittest.mock import patch
 
 import pytest as pytest
@@ -64,38 +65,38 @@ def test_flush_lsm(my_lsm):
     [
         (
             [(i, i) for i in range(100)],
-            [[0, 0], [50, (4 * 2 + 1) * 50]],
+            [0, 50],
             (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL),
         ),
         (
             [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
-            [["key00", 0], ["key50", ((5 + 2) * 2 + 1) * 50]],
+            ["key00", "key50"],
             (PrimitiveType.VARCHAR, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(i, f"val{i:02d}") for i in range(100)],
-            [[0, 0], [50, (4 + (5 + 2) + 1) * 50]],
+            [0, 50],
             (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(float(i), f"val{i:02d}") for i in range(100)],
-            [[0.0, 0], [50.0, (8 + (5 + 2) + 1) * 50]],
+            [0, 50],
             (PrimitiveType.DOUBLE, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
         ),
         (
             [(float(i), i) for i in range(100)],
-            [[0.0, 0], [50.0, (4 + 4 + 1) * 50]],
+            [0, 50],
             (PrimitiveType.FLOAT, PrimitiveType.INT, PrimitiveType.BOOL),
         ),
         (
             [(i, float(i)) for i in range(100)],
-            [[0, 0], [50, (2 + 8 + 1) * 50]],
+            [0, 50],
             (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
         ),
         (
             # TODO simplify encoding for primitives
             [(i, [i, i]) for i in range(100)],
-            [[0, 0], [50, (4 + (2 + (4 * 2)) + 1) * 50]],
+            [0, 50],
             (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
         ),
     ],
@@ -111,14 +112,18 @@ def test_flush_table(tmp_path, my_mem_table, data, index, meta):
     # test
     table.flush(my_mem_table)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
-        decoded_block = [MemNode(*el) for el in decode(f.read(), list(metadata))]
-        assert len(decoded_block) == 100
-        assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
-        assert all(not record.is_deleted for record in decoded_block)
+        decoded_block = []
+        for a, b in zip_longest(table._index, table._index[1:]):
+            f.seek(a[1])
+            size = b[1] - a[1] if b else -1
+            decoded_block.extend(MemNode(*el) for el in decode(decompress(f.read(size)), list(metadata)))
+    assert len(decoded_block) == 100
+    assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
+    assert all(not record.is_deleted for record in decoded_block)
 
     with open(tmp_path / f"{serial}.spx", "rb") as f:
         decoded_index = list(decode(f.read(), table._index_meta))
-        assert decoded_index == index
+        assert [x[0] for x in decoded_index] == index
 
 
 def setup_metadata(tmp_path, meta):

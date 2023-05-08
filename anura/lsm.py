@@ -1,6 +1,7 @@
 import struct
 from bisect import bisect
 from datetime import datetime
+from gzip import compress, decompress
 from pathlib import Path
 from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
 
@@ -111,10 +112,7 @@ def decode(block: bytes, metadata: Sequence[Dict]) -> Sequence[Any]:
 
 
 def encode(record: Sequence[Any], metadata: Sequence[Dict]) -> bytes:
-    acc = b""
-    for el, metatype in zip(record, metadata):
-        acc += pack(el, **metatype)
-    return acc
+    return b"".join(pack(el, **metatype) for el, metatype in zip(record, metadata))
 
 
 def unpack(
@@ -228,11 +226,10 @@ class SSTable(Generic[K, V]):
         with open(self._table_path, "wb") as f:
             for block in chunk(table, BLOCK_SIZE):
                 self._index.append((block[0].key, offset))
-                # TODO compress records
-                for record in block:
-                    e_record = encode(record, self._metadata)
-                    f.write(e_record)
-                    offset += len(e_record)
+                acc = b"".join(encode(record, self._metadata) for record in block)
+                raw = compress(acc)
+                f.write(raw)
+                offset += len(raw)
 
         self._flush_index()
 
@@ -256,8 +253,7 @@ class SSTable(Generic[K, V]):
         with open(self._table_path, "rb") as f:
             f.seek(start)
             raw = f.read(length)
-            # TODO: decompress
-            block = decode(raw, self._metadata)
+            block = decode(decompress(raw), self._metadata)
             j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
             if block[j][0] == key:
                 return MemNode[K, V](*block[j])
