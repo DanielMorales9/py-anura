@@ -221,10 +221,11 @@ class SSTable(Generic[K, V]):
         self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
         self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
 
-    def flush(self, table: MemTable[K, V]) -> None:
+    def flush(self, table: MemTable[K, V], block_size: int = BLOCK_SIZE) -> None:
+        # TODO consider using mmap
         offset = 0
         with open(self._table_path, "wb") as f:
-            for block in chunk(table, BLOCK_SIZE):
+            for block in chunk(table, block_size):
                 self._index.append((block[0].key, offset))
                 acc = b"".join(encode(record, self._metadata) for record in block)
                 raw = compress(acc)
@@ -239,7 +240,6 @@ class SSTable(Generic[K, V]):
                 f.write(encode(el, self._index_meta))
 
     def find(self, key: K) -> Optional[MemNode[K, V]]:
-        # TODO consider using mmap
         i = bisect(self._index, key, key=lambda x: x[0])  # type: ignore[call-overload]
         if i == 0:
             return None
@@ -262,6 +262,8 @@ class SSTable(Generic[K, V]):
 
 
 class LSMTree(Generic[K, V]):
+    # TODO: background process compacting tables
+
     def __init__(self, path: Path) -> None:
         self._path = path
         self._meta = Metadata(self._path)
@@ -281,6 +283,7 @@ class LSMTree(Generic[K, V]):
         del self._mem_table[key]
 
     def flush(self) -> None:
+        # TODO: background process flushing data
         table = SSTable[K, V](self._path, self._meta)
         table.flush(self._mem_table)
         self._tables.append(table)
