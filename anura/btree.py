@@ -1,3 +1,4 @@
+import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Generator, Generic, Optional, Tuple, TypeVar
@@ -34,22 +35,93 @@ class Node(Generic[T]):
     parent: Optional["Node"] = None
     left: Optional["Node"] = None
     right: Optional["Node"] = None
+    balance: int = 0
 
 
+@typing.no_type_check
 def inorder_traversal(node: Optional[Node[T]]) -> Generator[Node[T], None, None]:
     if not node:
         return
-    stack = [node]
-    while stack:
-        if node.left:
-            stack.append(node.left)
+    stack = []
+    while True:
+        if node:
+            stack.append(node)
             node = node.left
-        else:
+        elif stack:
             node = stack.pop()
             yield node
-            if node.right:
-                stack.append(node.right)
-                node = node.right
+            node = node.right
+        else:
+            break
+
+
+@typing.no_type_check
+def rotate_left(node: Node) -> Node:
+    x = node.right
+    node.right = x.left
+    if node.right:
+        node.right.parent = node
+
+    x.parent = node.parent
+    if x.parent:
+        if x.parent.left == node:
+            x.parent.left = x
+        else:
+            x.parent.right = x
+
+    node.parent = x
+    x.left = node
+
+    node.balance += 1
+    if x.balance < 0:
+        node.balance -= x.balance
+
+    x.balance += 1
+    if node.balance > 0:
+        x.balance += node.balance
+    return x
+
+
+@typing.no_type_check
+def rotate_right(node: Node) -> Node:
+    x = node.left
+    node.left = x.right
+    if node.left:
+        node.left.parent = node
+
+    x.parent = node.parent
+    if x.parent:
+        if x.parent.left == node:
+            x.parent.left = x
+        else:
+            x.parent.right = x
+
+    node.parent = x
+    x.right = node
+
+    node.balance -= 1
+    if x.balance > 0:
+        node.balance -= x.balance
+
+    x.balance -= 1
+    if node.balance < 0:
+        x.balance += node.balance
+    return x
+
+
+def search(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
+    node = root
+    parent: Optional[Node] = None
+
+    while node:
+        parent = node
+        if obj == node.data:
+            return node, parent
+        elif obj < node.data:
+            node = node.left
+        else:
+            node = node.right
+    return None, parent
 
 
 class BinarySearchTree(Generic[T]):
@@ -63,49 +135,62 @@ class BinarySearchTree(Generic[T]):
     def __repr__(self) -> str:
         return repr([node.data for node in inorder_traversal(self._root)])
 
-    @staticmethod
-    def search(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[Node[T]]]:
-        node = root
-        parent: Optional[Node] = None
-
-        while node:
-            parent = node
-            if obj == node.data:
-                return node, parent
-            elif obj < node.data:
-                node = node.left
-            else:
-                node = node.right
-        return None, parent
-
     def find(self, obj: T) -> Optional[T]:
-        node, _ = self.search(self._root, obj)
+        node, _ = search(self._root, obj)
         if node:
             return node.data
         return None
 
+    @typing.no_type_check
     def insert(self, obj: T) -> None:
         if not self._root:
             self._root = Node(obj)
             self.size += 1
-            self._root.data = obj
             return
 
-        node, parent = self.search(self._root, obj)
+        node, parent = search(self._root, obj)
         if node:
+            # update node with new data
             node.data = obj
-
-        new_node = Node(obj)
-        if parent:
+        else:
+            # insert node with data
+            new_node = Node(obj, parent)
             if obj < parent.data:
                 parent.left = new_node
             else:
                 parent.right = new_node
 
-        # TODO: re-balance
+            self.balance(parent, obj)
 
         self.size += 1
         return None
+
+    @typing.no_type_check
+    def balance(self, parent: Optional[Node[T]], obj: T) -> None:
+        while parent:
+            if parent.data < obj:
+                parent.balance -= 1
+            else:
+                parent.balance += 1
+
+            if parent.balance in (-1, 1):
+                parent = parent.parent
+            elif parent.balance < -1:
+                if parent.right.balance == 1:
+                    rotate_right(parent.right)
+                new_root = rotate_left(parent)
+                if parent == self._root:
+                    self._root = new_root
+                parent = None
+            elif parent.balance > 1:
+                if parent.left.balance == -1:
+                    rotate_left(parent.left)
+                new_root = rotate_right(parent)
+                if parent == self._root:
+                    self._root = new_root
+                parent = None
+            else:
+                parent = None
 
     def visual_repr(self) -> str:
         return "\n" + rec_visualise(self._root) + "\n"
