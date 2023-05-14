@@ -76,9 +76,8 @@ class SSTable(Generic[K, V]):
 
     @staticmethod
     def _search(key: K, block: Sequence[Any]) -> Optional[MemNode[K, V]]:
-        # TODO: correctness= -1 result
         j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
-        if key == block[j][0]:
+        if j >= 0 and key == block[j][0]:
             return MemNode[K, V](*block[j])
         return None
 
@@ -172,7 +171,8 @@ class LSMTree(Generic[K, V]):
         self._mem_table = MemTable[K, V]()
 
     def _find(self, key: K) -> Optional[V]:
-        for table in self._tables:
+        # TODO: test correctness
+        for table in sorted(self._tables, key=lambda x: -x.serial):
             node = table.find(key)
             if node and not node.is_deleted:
                 return node.value

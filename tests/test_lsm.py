@@ -142,9 +142,8 @@ def test_flush_table(tmp_path, data, index, meta):
     TEST_DATA,
 )
 def test_seq_scan(tmp_path, data, index, meta):
-    serial = 101
     metadata = setup_metadata(tmp_path, meta)
-    table = SSTable(tmp_path, metadata, serial=serial)
+    table = SSTable(tmp_path, metadata)
 
     table.flush(MemNode(k, v) for k, v in data)
 
@@ -202,6 +201,21 @@ def test_merge_tables(tmp_path, my_lsm, data, expected):
 
     my_lsm._tables = tables
     assert list(my_lsm.merge()) == [MemNode(*v) for v in expected]
+
+
+@pytest.mark.parametrize(
+    "key, data",
+    [
+        (0, []),
+        (0, [(1,)]),
+        (7, [(1,), (4,), (5,)]),
+    ],
+)
+def test_search_empty_block(tmp_path, key, data):
+    meta = (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL)
+    metadata = setup_metadata(tmp_path, meta)
+    table = SSTable(tmp_path, metadata, serial=101)
+    assert table._search(key, data) is None
 
 
 def test_find_lsm(my_lsm, tmp_path):
