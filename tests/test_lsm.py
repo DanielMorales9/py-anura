@@ -5,7 +5,9 @@ from unittest.mock import patch
 import pytest as pytest
 
 from anura.constants import META_CONFIG, ComplexType, PrimitiveType
-from anura.lsm import LSMTree, MemNode, MemTable, Metadata, SSTable, decode
+from anura.io import decode
+from anura.lsm import LSMTree, MemTable, Metadata, SSTable
+from anura.model import MemNode
 
 TEST_META = (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL)
 
@@ -58,6 +60,15 @@ def test_flush_lsm(my_lsm):
         my_lsm.flush()
         assert my_lsm._mem_table._btree.size == 0
         mock_method.assert_called()
+
+
+def setup_metadata(tmp_path, meta):
+    meta_data_path = tmp_path / "meta.data"
+    value_type = f"{meta[1][1]}[]" if isinstance(meta[1], tuple) else meta[1]
+
+    meta_data_path.write_text(f"key={meta[0]},value={value_type},tombstone={meta[2]}")
+    metadata = Metadata(tmp_path)
+    return metadata
 
 
 TEST_DATA = [
@@ -154,13 +165,43 @@ def test_iter(tmp_path, data, index, meta):
     assert [(rec.key, rec.value) for rec in iter(table)] == data
 
 
-def setup_metadata(tmp_path, meta):
-    meta_data_path = tmp_path / "meta.data"
-    value_type = f"{meta[1][1]}[]" if isinstance(meta[1], tuple) else meta[1]
+@pytest.mark.parametrize(
+    "data, expected",
+    [
+        pytest.param(
+            ((1, range(10), False), (2, range(10, 20), False)), ((i, f"v{i%10+1}") for i in range(20)), id="1"
+        ),
+        pytest.param(((2, range(10), False), (1, range(10), False)), ((i, "v2") for i in range(10)), id="2"),
+        pytest.param(
+            ((1, range(20, 30), False), (2, range(10), False), (3, range(10, 20), False)),
+            ((i, f"v{i%10+1}") for i in range(30)),
+            id="3",
+        ),
+        pytest.param(((1, range(20, 30), False), (2, range(10), True)), ((i, "v1") for i in range(20, 30)), id="4"),
+        pytest.param(
+            ((1, range(1_000), False), (2, range(1_000, 2_000), False)),
+            ((i, f"v{i % 1_000 + 1}") for i in range(2_000)),
+            id="4",
+        ),
+        pytest.param(
+            ((1, range(1, 20, 3), False), (2, range(0, 20, 7), False)),
+            [(0, "v2"), (1, "v1"), (4, "v1"), (7, "v2"), (10, "v1"), (13, "v1"), (14, "v2"), (16, "v1"), (19, "v1")],
+            id="5",
+        ),
+    ],
+)
+def test_merge_tables(tmp_path, my_lsm, data, expected):
+    meta = (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL)
+    metadata = setup_metadata(tmp_path, meta)
 
-    meta_data_path.write_text(f"key={meta[0]},value={value_type},tombstone={meta[2]}")
-    metadata = Metadata(tmp_path)
-    return metadata
+    tables = []
+    for serial, it, deleted in data:
+        table = SSTable(tmp_path, metadata, serial=serial)
+        table.flush((MemNode(el, f"v{serial}", deleted) for el in it), block_size=5)
+        tables.append(table)
+
+    my_lsm._tables = tables
+    assert list(my_lsm.merge()) == [MemNode(*v) for v in expected]
 
 
 def test_find_lsm(my_lsm, tmp_path):

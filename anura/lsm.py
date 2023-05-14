@@ -1,77 +1,16 @@
-import struct
 from bisect import bisect
 from datetime import datetime
 from gzip import compress, decompress
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple
 
-from anura.btree import AVLTree, Comparable
+from anura.btree import AVLTree
 from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, PrimitiveType
+from anura.io import decode, encode, read_block, write_from
 from anura.metadata.parser import parse
-from anura.utils import chunk
-
-K = TypeVar("K")
-V = TypeVar("V")
-
-
-class KeyValueEntry(Comparable, Generic[K, V]):
-    def __init__(self, key: K, value: Optional[V] = None):
-        self._key = key
-        self._value = value
-
-    @property
-    def key(self) -> K:
-        return self._key
-
-    @property
-    def value(self) -> Optional[V]:
-        return self._value
-
-    def __eq__(self, other: object) -> Any:
-        if not isinstance(other, KeyValueEntry):
-            return False
-        return self.key == other.key
-
-    def __lt__(self, other: object) -> Any:
-        if not isinstance(other, KeyValueEntry):
-            return False
-        return self.key < other.key
-
-    def __gt__(self, other: object) -> Any:
-        if not isinstance(other, KeyValueEntry):
-            return False
-        return self.key > other.key
-
-    def __le__(self, other: object) -> Any:
-        if not isinstance(other, KeyValueEntry):
-            return False
-        return self.key <= other.key
-
-    def __ge__(self, other: object) -> Any:
-        if not isinstance(other, KeyValueEntry):
-            return False
-        return self.key >= other.key
-
-    def __repr__(self) -> str:
-        return f"{self._key}:{self._value}"
-
-
-class MemNode(KeyValueEntry[K, V]):
-    def __init__(self, key: K, value: Optional[V] = None, tombstone: bool = False):
-        super().__init__(key, value)
-        self._tombstone: bool = tombstone
-
-    @property
-    def is_deleted(self) -> bool:
-        return self._tombstone
-
-    @is_deleted.setter
-    def is_deleted(self, value: bool) -> None:
-        self._tombstone = value
-
-    def __iter__(self) -> Iterator[Any]:
-        return iter((self.key, self.value, self.is_deleted))
+from anura.model import K, MemNode, V
+from anura.utils import chunk, k_way_merge_sort
 
 
 class MemTable(Generic[K, V]):
@@ -99,91 +38,6 @@ class MemTable(Generic[K, V]):
             yield node.data
 
 
-def decode(block: bytes, metadata: Sequence[Dict]) -> Iterator[Sequence[Any]]:
-    i = 0
-    while i < len(block):
-        record = [None] * len(metadata)
-        for j, metatype in enumerate(metadata):
-            el, offset = unpack(block[i:], **metatype)
-            record[j] = el
-            i += offset
-        yield record
-
-
-def encode(block: Sequence[Any], metadata: Sequence[Dict]) -> Iterator[bytes]:
-    for record in block:
-        for el, metatype in zip(record, metadata):
-            yield pack(el, **metatype)
-
-
-def unpack(
-    block: bytes,
-    struct_symbol: str,
-    base_size: int,
-    is_container: Optional[bool] = False,
-    charset: Optional[str] = None,
-    length_type: Optional[str] = None,
-    inner_type: Optional[Dict] = None,
-    **kwargs: Any,
-) -> Tuple[Any, int]:
-    start, offset, size = 0, base_size, 1
-
-    # TODO refactor: simplify
-    if is_container and length_type:
-        size, offset = unpack(block[start:], **META_CONFIG[length_type])  # type: ignore[arg-type]
-        start, offset = start + offset, start + offset + base_size * size
-
-    if inner_type:
-        i = 0
-        res = []
-        while i < size:
-            inner, offset = unpack(block[start:], **inner_type)
-            res.append(inner)
-            i += 1
-            start += offset
-        offset = start
-    else:
-        res = struct.unpack(f">{size}{struct_symbol}", block[start:offset])[0]
-
-        if charset:
-            res = res.decode(charset)  # type: ignore[attr-defined]
-    return res, offset
-
-
-def pack(
-    field: Any,
-    struct_symbol: str,
-    is_container: Optional[bool] = False,
-    charset: Optional[str] = None,
-    length_type: Optional[str] = None,
-    inner_type: Optional[Dict] = None,
-    **kwargs: Any,
-) -> bytes:
-    size = 1
-    args = []
-    length_symbol = ""
-
-    if charset:
-        field = field.encode(charset)
-
-    # TODO refactor: simplify
-    if length_type:
-        length_symbol = str(META_CONFIG[length_type]["struct_symbol"])
-
-    if is_container:
-        size = len(field)
-        args.append(size)
-
-    if inner_type:
-        res = struct.pack(f">{length_symbol}", size)
-        for el in field:
-            res += pack(el, **inner_type)
-    else:
-        args.append(field)
-        res = struct.pack(f">{length_symbol}{size}{struct_symbol}", *args)
-    return res
-
-
 class Metadata:
     def __init__(self, path: Path):
         self._path = path / "meta.data"
@@ -207,17 +61,6 @@ class Metadata:
         return iter((self.key_type, self.value_type, self.tombstone_type))
 
 
-def write_from(path: Path | str, it: Iterator, mode: str = "wb") -> None:
-    with open(path, mode) as f:
-        f.writelines(it)
-
-
-def read_block(path: Path | str, mode: str = "rb", offset: int = 0, n: int = -1) -> Any:
-    with open(path, mode) as f:
-        f.seek(offset)
-        return f.read(n)
-
-
 class SSTable(Generic[K, V]):
     # TODO refactor MetaConfig(PrimitiveType) approach
     _offset_meta = META_CONFIG[PrimitiveType.LONG]
@@ -226,12 +69,14 @@ class SSTable(Generic[K, V]):
         self._index: List[Tuple[K, int]] = []
         self._metadata = list(metadata)
         self._index_meta = (metadata.key_type, self._offset_meta)
-        self._serial = serial or int(datetime.utcnow().timestamp())
-        self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
-        self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
+        # TODO microsecond precision
+        self.serial = serial or int(datetime.utcnow().timestamp())
+        self._table_path = path / f"{self.serial}.{SSTABLE_EXT}"
+        self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}"
 
     @staticmethod
     def _search(key: K, block: Sequence[Any]) -> Optional[MemNode[K, V]]:
+        # TODO: correctness= -1 result
         j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
         if key == block[j][0]:
             return MemNode[K, V](*block[j])
@@ -309,6 +154,14 @@ class LSMTree(Generic[K, V]):
 
     def delete(self, key: K) -> None:
         del self._mem_table[key]
+
+    def merge(self) -> Iterator[MemNode[K, V]]:
+        # TODO invert control
+        prev = None
+        for curr in k_way_merge_sort(self._tables, key=lambda x: -x.serial):
+            if prev != curr and not curr.is_deleted:
+                yield curr
+                prev = curr
 
     def flush(self) -> None:
         # TODO invert control

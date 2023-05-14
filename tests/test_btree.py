@@ -3,7 +3,7 @@ from random import shuffle
 import pytest as pytest
 
 from anura.btree import AVLTree
-from anura.lsm import KeyValueEntry
+from anura.model import KeyValueEntry
 
 
 @pytest.fixture
