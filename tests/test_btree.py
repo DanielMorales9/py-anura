@@ -2,13 +2,13 @@ from random import shuffle
 
 import pytest as pytest
 
-from anura.btree import BinarySearchTree
+from anura.btree import AVLTree
 from anura.lsm import KeyValueEntry
 
 
 @pytest.fixture
 def my_btree():
-    return BinarySearchTree[KeyValueEntry]()
+    return AVLTree[KeyValueEntry]()
 
 
 def test_insert_find_btree(my_btree):

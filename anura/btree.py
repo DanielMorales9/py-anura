@@ -124,7 +124,7 @@ def search(root: Optional[Node], obj: T) -> Tuple[Optional[Node[T]], Optional[No
     return None, parent
 
 
-class BinarySearchTree(Generic[T]):
+class AVLTree(Generic[T]):
     def __init__(self) -> None:
         self._root: Optional[Node[T]] = None
         self.size = 0

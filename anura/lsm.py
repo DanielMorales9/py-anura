@@ -5,7 +5,7 @@ from gzip import compress, decompress
 from pathlib import Path
 from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
 
-from anura.btree import BinarySearchTree, Comparable
+from anura.btree import AVLTree, Comparable
 from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, PrimitiveType
 from anura.metadata.parser import parse
 from anura.utils import chunk
@@ -75,7 +75,7 @@ class MemNode(KeyValueEntry[K, V]):
 
 class MemTable(Generic[K, V]):
     def __init__(self) -> None:
-        self._btree = BinarySearchTree[MemNode[K, V]]()
+        self._btree = AVLTree[MemNode[K, V]]()
 
     def __getitem__(self, key: K) -> Optional[V]:
         data = self._btree.find(MemNode[K, V](key))
