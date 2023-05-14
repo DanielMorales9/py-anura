@@ -101,16 +101,13 @@ def test_flush_lsm(my_lsm):
         ),
     ],
 )
-def test_flush_table(tmp_path, my_mem_table, data, index, meta):
+def test_flush_table(tmp_path, data, index, meta):
     # fixture setup
     serial = 101
     metadata = setup_metadata(tmp_path, meta)
     table = SSTable(tmp_path, metadata, serial=serial)
-    for k, v in data:
-        my_mem_table[k] = v
-
     # test
-    table.flush(my_mem_table)
+    table.flush(MemNode(k, v) for k, v in data)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
         decoded_block = []
         for a, b in zip_longest(table._index, table._index[1:]):
@@ -158,12 +155,10 @@ def test_find_lsm(my_lsm, tmp_path):
         (100, None),
     ],
 )
-def test_find_table(tmp_path, my_mem_table, key, value):
+def test_find_table(tmp_path, key, value):
     # fixture setup
     table = SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)
-    for i in range(100):
-        my_mem_table[i] = i
-    table.flush(my_mem_table)
+    table.flush(MemNode(i, i) for i in range(100))
 
     # test
     if value is not None:

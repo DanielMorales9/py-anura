@@ -1,8 +1,7 @@
 from itertools import islice
-from typing import Any, Generator, Iterable, Sequence
+from typing import Any, Generator, Iterator, Sequence
 
 
-def chunk(container: Iterable[Any], size: int) -> Generator[Sequence[Any], None, None]:
-    iterator = iter(container)
-    while _chunk := list(islice(iterator, size)):
+def chunk(it: Iterator, size: int) -> Generator[Sequence[Any], None, None]:
+    while _chunk := list(islice(it, size)):
         yield _chunk

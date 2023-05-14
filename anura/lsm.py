@@ -221,11 +221,11 @@ class SSTable(Generic[K, V]):
         self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
         self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
 
-    def flush(self, table: MemTable[K, V], block_size: int = BLOCK_SIZE) -> None:
+    def flush(self, it: Iterator, block_size: int = BLOCK_SIZE) -> None:
         # TODO consider using mmap
         offset = 0
         with open(self._table_path, "wb") as f:
-            for block in chunk(table, block_size):
+            for block in chunk(it, block_size):
                 self._index.append((block[0].key, offset))
                 acc = b"".join(encode(record, self._metadata) for record in block)
                 raw = compress(acc)
@@ -285,7 +285,7 @@ class LSMTree(Generic[K, V]):
     def flush(self) -> None:
         # TODO: background process flushing data
         table = SSTable[K, V](self._path, self._meta)
-        table.flush(self._mem_table)
+        table.flush(iter(self._mem_table))
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()
 
