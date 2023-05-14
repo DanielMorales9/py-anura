@@ -2,6 +2,7 @@ import struct
 from bisect import bisect
 from datetime import datetime
 from gzip import compress, decompress
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar
 
@@ -98,21 +99,21 @@ class MemTable(Generic[K, V]):
             yield node.data
 
 
-def decode(block: bytes, metadata: Sequence[Dict]) -> Sequence[Any]:
+def decode(block: bytes, metadata: Sequence[Dict]) -> Iterator[Sequence[Any]]:
     i = 0
-    res = []
     while i < len(block):
         record = [None] * len(metadata)
         for j, metatype in enumerate(metadata):
             el, offset = unpack(block[i:], **metatype)
             record[j] = el
             i += offset
-        res.append(record)
-    return res
+        yield record
 
 
-def encode(record: Sequence[Any], metadata: Sequence[Dict]) -> bytes:
-    return b"".join(pack(el, **metatype) for el, metatype in zip(record, metadata))
+def encode(block: Sequence[Any], metadata: Sequence[Dict]) -> Iterator[bytes]:
+    for record in block:
+        for el, metatype in zip(record, metadata):
+            yield pack(el, **metatype)
 
 
 def unpack(
@@ -127,7 +128,7 @@ def unpack(
 ) -> Tuple[Any, int]:
     start, offset, size = 0, base_size, 1
 
-    # TODO refactor
+    # TODO refactor: simplify
     if is_container and length_type:
         size, offset = unpack(block[start:], **META_CONFIG[length_type])  # type: ignore[arg-type]
         start, offset = start + offset, start + offset + base_size * size
@@ -165,7 +166,7 @@ def pack(
     if charset:
         field = field.encode(charset)
 
-    # TODO refactor
+    # TODO refactor: simplify
     if length_type:
         length_symbol = str(META_CONFIG[length_type]["struct_symbol"])
 
@@ -206,7 +207,15 @@ class Metadata:
         return iter((self.key_type, self.value_type, self.tombstone_type))
 
 
-WRITE_MODE = "wb"
+def write_from(path: Path | str, it: Iterator, mode: str = "wb") -> None:
+    with open(path, mode) as f:
+        f.writelines(it)
+
+
+def read_block(path: Path | str, mode: str = "rb", offset: int = 0, n: int = -1) -> Any:
+    with open(path, mode) as f:
+        f.seek(offset)
+        return f.read(n)
 
 
 class SSTable(Generic[K, V]):
@@ -221,51 +230,70 @@ class SSTable(Generic[K, V]):
         self._table_path = path / f"{self._serial}.{SSTABLE_EXT}"
         self._index_path = path / f"{self._serial}.{SPARSE_IDX_EXT}"
 
+    @staticmethod
+    def _search(key: K, block: Sequence[Any]) -> Optional[MemNode[K, V]]:
+        j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
+        if key == block[j][0]:
+            return MemNode[K, V](*block[j])
+        return None
+
     def flush(self, it: Iterator, block_size: int = BLOCK_SIZE) -> None:
         # TODO consider using mmap
+        pipeline = self._write_pipeline(it, block_size)
+        write_from(self._table_path, pipeline)
+
+        it = encode(self._index, self._index_meta)
+        write_from(self._index_path, it)
+
+    def _write_pipeline(self, it: Iterator, block_size: int) -> Iterator[bytes]:
         offset = 0
-        with open(self._table_path, "wb") as f:
-            for block in chunk(it, block_size):
-                self._index.append((block[0].key, offset))
-                acc = b"".join(encode(record, self._metadata) for record in block)
-                raw = compress(acc)
-                f.write(raw)
-                offset += len(raw)
-
-        self._flush_index()
-
-    def _flush_index(self) -> None:
-        with open(self._index_path, "wb") as f:
-            for el in self._index:
-                f.write(encode(el, self._index_meta))
+        for block in chunk(it, block_size):
+            self._index.append((block[0].key, offset))
+            acc = b"".join(encode(block, self._metadata))
+            raw = compress(acc)
+            yield raw
+            offset += len(raw)
 
     def find(self, key: K) -> Optional[MemNode[K, V]]:
         i = bisect(self._index, key, key=lambda x: x[0])  # type: ignore[call-overload]
         if i == 0:
             return None
 
-        start = self._index[i - 1][1]
+        offset = self._index[i - 1][1]
         length = -1
         if i < len(self._index):
-            end = self._index[i][1]
-            length = end - start
+            length = self._index[i][1] - offset
 
-        with open(self._table_path, "rb") as f:
-            f.seek(start)
-            raw = f.read(length)
-            block = decode(decompress(raw), self._metadata)
-            j = bisect(block, key, key=lambda x: x[0]) - 1  # type: ignore[call-overload]
-            if block[j][0] == key:
-                return MemNode[K, V](*block[j])
+        # read pipeline
+        block = self._read_pipeline(offset, length)
 
-        return None
+        # search in block
+        return self._search(key, list(block))
+
+    def _read_pipeline(self, offset: int, length: int) -> Iterator[Sequence[Any]]:
+        raw = read_block(self._table_path, offset=offset, n=length)
+        uncompressed = decompress(raw)
+        yield from decode(uncompressed, self._metadata)
+
+    def seq_scan(self) -> Iterator[MemNode[K, V]]:
+        for (_, offset), _next in zip_longest(self._index, self._index[1:]):
+            length = -1
+            if _next:
+                length = _next[1] - offset
+
+            for record in self._read_pipeline(offset, length):
+                yield MemNode[K, V](*record)
+
+    def __iter__(self) -> Iterator[MemNode[K, V]]:
+        return self.seq_scan()
 
 
 class LSMTree(Generic[K, V]):
-    # TODO: background process compacting tables
+    # TODO: background process compacting tables: merge tables
 
     def __init__(self, path: Path) -> None:
         self._path = path
+        # TODO invert control
         self._meta = Metadata(self._path)
         self._mem_table = MemTable[K, V]()
         self._tables: List[SSTable[K, V]] = []
@@ -283,6 +311,7 @@ class LSMTree(Generic[K, V]):
         del self._mem_table[key]
 
     def flush(self) -> None:
+        # TODO invert control
         # TODO: background process flushing data
         table = SSTable[K, V](self._path, self._meta)
         table.flush(iter(self._mem_table))

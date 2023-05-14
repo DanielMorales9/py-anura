@@ -60,46 +60,49 @@ def test_flush_lsm(my_lsm):
         mock_method.assert_called()
 
 
+TEST_DATA = [
+    (
+        [(i, i) for i in range(100)],
+        [0, 50],
+        (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL),
+    ),
+    (
+        [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
+        ["key00", "key50"],
+        (PrimitiveType.VARCHAR, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
+    ),
+    (
+        [(i, f"val{i:02d}") for i in range(100)],
+        [0, 50],
+        (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
+    ),
+    (
+        [(float(i), f"val{i:02d}") for i in range(100)],
+        [0, 50],
+        (PrimitiveType.DOUBLE, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
+    ),
+    (
+        [(float(i), i) for i in range(100)],
+        [0, 50],
+        (PrimitiveType.FLOAT, PrimitiveType.INT, PrimitiveType.BOOL),
+    ),
+    (
+        [(i, float(i)) for i in range(100)],
+        [0, 50],
+        (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
+    ),
+    (
+        # TODO simplify encoding for primitives
+        [(i, [i, i]) for i in range(100)],
+        [0, 50],
+        (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
+    ),
+]
+
+
 @pytest.mark.parametrize(
     "data, index, meta",
-    [
-        (
-            [(i, i) for i in range(100)],
-            [0, 50],
-            (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL),
-        ),
-        (
-            [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
-            ["key00", "key50"],
-            (PrimitiveType.VARCHAR, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
-        ),
-        (
-            [(i, f"val{i:02d}") for i in range(100)],
-            [0, 50],
-            (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
-        ),
-        (
-            [(float(i), f"val{i:02d}") for i in range(100)],
-            [0, 50],
-            (PrimitiveType.DOUBLE, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
-        ),
-        (
-            [(float(i), i) for i in range(100)],
-            [0, 50],
-            (PrimitiveType.FLOAT, PrimitiveType.INT, PrimitiveType.BOOL),
-        ),
-        (
-            [(i, float(i)) for i in range(100)],
-            [0, 50],
-            (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
-        ),
-        (
-            # TODO simplify encoding for primitives
-            [(i, [i, i]) for i in range(100)],
-            [0, 50],
-            (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
-        ),
-    ],
+    TEST_DATA,
 )
 def test_flush_table(tmp_path, data, index, meta):
     # fixture setup
@@ -121,6 +124,34 @@ def test_flush_table(tmp_path, data, index, meta):
     with open(tmp_path / f"{serial}.spx", "rb") as f:
         decoded_index = list(decode(f.read(), table._index_meta))
         assert [x[0] for x in decoded_index] == index
+
+
+@pytest.mark.parametrize(
+    "data, index, meta",
+    TEST_DATA,
+)
+def test_seq_scan(tmp_path, data, index, meta):
+    serial = 101
+    metadata = setup_metadata(tmp_path, meta)
+    table = SSTable(tmp_path, metadata, serial=serial)
+
+    table.flush(MemNode(k, v) for k, v in data)
+
+    assert [(rec.key, rec.value) for rec in table.seq_scan()] == data
+
+
+@pytest.mark.parametrize(
+    "data, index, meta",
+    TEST_DATA,
+)
+def test_iter(tmp_path, data, index, meta):
+    serial = 101
+    metadata = setup_metadata(tmp_path, meta)
+    table = SSTable(tmp_path, metadata, serial=serial)
+
+    table.flush(MemNode(k, v) for k, v in data)
+
+    assert [(rec.key, rec.value) for rec in iter(table)] == data
 
 
 def setup_metadata(tmp_path, meta):
