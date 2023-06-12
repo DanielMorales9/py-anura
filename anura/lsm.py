@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple
 
 from anura.btree import AVLTree
-from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, PrimitiveType
+from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, TypeEnum
 from anura.io import decode, encode, read_block, write_from
 from anura.metadata.parser import parse
 from anura.model import K, MemNode, V
@@ -63,7 +63,7 @@ class Metadata:
 
 class SSTable(Generic[K, V]):
     # TODO refactor MetaConfig(PrimitiveType) approach
-    _offset_meta = META_CONFIG[PrimitiveType.LONG]
+    _offset_meta = META_CONFIG[TypeEnum.LONG]
 
     def __init__(self, path: Path, metadata: Metadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []

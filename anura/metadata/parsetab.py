@@ -6,105 +6,144 @@ _tabversion = "3.10"
 _lr_method = "LALR"
 
 _lr_signature = (
-    "ASSIGN COMMA ID LBRACE LSQUARE RBRACE RSQUARE TYPE\n    expression : ID ASSIGN type\n    \n    type : TYPE\n    \n"
-    "    type : TYPE LSQUARE RSQUARE\n    expression : expression COMMA expressionexpression : LBRACE expression RBRACE"
+    "leftCOMMAleftASSIGNASSIGN COMMA ID LBRACE LPAREN LSQUARE RBRACE RPAREN RSQUARE TYPE VALUE\n    calc : expression\n"
+    "         | empty\n    \n    empty :\n    \n    expression : expression COMMA expression\n    \n    expression : ID"
+    " ASSIGN type\n    \n    type : type LPAREN option RPAREN\n    \n    type : TYPE\n    \n    type : LBRACE"
+    " expression RBRACE\n    \n    type : TYPE LSQUARE RSQUARE\n    \n    option : option COMMA option\n    \n   "
+    " option : ID ASSIGN VALUE\n    "
 )
 
 _lr_action_items = {
     "ID": (
         [
             0,
-            3,
+            5,
+            10,
+            11,
+            19,
+        ],
+        [
             4,
-        ],
-        [
-            2,
-            2,
-            2,
-        ],
-    ),
-    "LBRACE": (
-        [
-            0,
-            3,
             4,
-        ],
-        [
-            3,
-            3,
-            3,
+            4,
+            15,
+            15,
         ],
     ),
     "$end": (
         [
+            0,
             1,
+            2,
+            3,
             7,
             8,
             9,
-            10,
-            12,
+            16,
+            17,
+            18,
         ],
         [
+            -3,
             0,
-            -4,
             -1,
             -2,
+            -4,
             -5,
-            -3,
+            -7,
+            -9,
+            -8,
+            -6,
         ],
     ),
     "COMMA": (
         [
-            1,
-            6,
+            2,
             7,
             8,
             9,
-            10,
-            12,
+            13,
+            14,
+            16,
+            17,
+            18,
+            21,
+            22,
         ],
         [
-            4,
-            4,
-            4,
-            -1,
-            -2,
+            5,
+            -4,
             -5,
-            -3,
+            -7,
+            5,
+            19,
+            -9,
+            -8,
+            -6,
+            -10,
+            -11,
         ],
     ),
     "ASSIGN": (
         [
-            2,
+            4,
+            15,
         ],
         [
-            5,
+            6,
+            20,
         ],
     ),
     "TYPE": (
         [
-            5,
+            6,
         ],
         [
             9,
         ],
     ),
-    "RBRACE": (
+    "LBRACE": (
         [
             6,
-            7,
-            8,
-            9,
-            10,
-            12,
         ],
         [
             10,
+        ],
+    ),
+    "RBRACE": (
+        [
+            7,
+            8,
+            9,
+            13,
+            16,
+            17,
+            18,
+        ],
+        [
             -4,
-            -1,
-            -2,
             -5,
-            -3,
+            -7,
+            17,
+            -9,
+            -8,
+            -6,
+        ],
+    ),
+    "LPAREN": (
+        [
+            8,
+            9,
+            16,
+            17,
+            18,
+        ],
+        [
+            11,
+            -7,
+            -9,
+            -8,
+            -6,
         ],
     ),
     "LSQUARE": (
@@ -112,15 +151,35 @@ _lr_action_items = {
             9,
         ],
         [
-            11,
+            12,
         ],
     ),
     "RSQUARE": (
         [
-            11,
+            12,
         ],
         [
-            12,
+            16,
+        ],
+    ),
+    "RPAREN": (
+        [
+            14,
+            21,
+            22,
+        ],
+        [
+            18,
+            -10,
+            -11,
+        ],
+    ),
+    "VALUE": (
+        [
+            20,
+        ],
+        [
+            22,
         ],
     ),
 }
@@ -134,24 +193,50 @@ for _k, _v in _lr_action_items.items():
 del _lr_action_items
 
 _lr_goto_items = {
-    "expression": (
+    "calc": (
         [
             0,
-            3,
-            4,
         ],
         [
             1,
-            6,
+        ],
+    ),
+    "expression": (
+        [
+            0,
+            5,
+            10,
+        ],
+        [
+            2,
             7,
+            13,
+        ],
+    ),
+    "empty": (
+        [
+            0,
+        ],
+        [
+            3,
         ],
     ),
     "type": (
         [
-            5,
+            6,
         ],
         [
             8,
+        ],
+    ),
+    "option": (
+        [
+            11,
+            19,
+        ],
+        [
+            14,
+            21,
         ],
     ),
 }
@@ -164,10 +249,16 @@ for _k, _v in _lr_goto_items.items():
         _lr_goto[_x][_k] = _y
 del _lr_goto_items
 _lr_productions = [
-    ("S' -> expression", "S'", 1, None, None, None),
-    ("expression -> ID ASSIGN type", "expression", 3, "p_expression", "parser.py", 42),
-    ("type -> TYPE", "type", 1, "p_type", "parser.py", 49),
-    ("type -> TYPE LSQUARE RSQUARE", "type", 3, "p_type_array", "parser.py", 56),
-    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "parser.py", 62),
-    ("expression -> LBRACE expression RBRACE", "expression", 3, "p_expression_group", "parser.py", 67),
+    ("S' -> calc", "S'", 1, None, None, None),
+    ("calc -> expression", "calc", 1, "p_calc", "parser.py", 65),
+    ("calc -> empty", "calc", 1, "p_calc", "parser.py", 66),
+    ("empty -> <empty>", "empty", 0, "p_empty", "parser.py", 73),
+    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "parser.py", 80),
+    ("expression -> ID ASSIGN type", "expression", 3, "p_expression", "parser.py", 87),
+    ("type -> type LPAREN option RPAREN", "type", 4, "p_type_with_option", "parser.py", 94),
+    ("type -> TYPE", "type", 1, "p_type", "parser.py", 101),
+    ("type -> LBRACE expression RBRACE", "type", 3, "p_type_struct", "parser.py", 108),
+    ("type -> TYPE LSQUARE RSQUARE", "type", 3, "p_type_array", "parser.py", 115),
+    ("option -> option COMMA option", "option", 3, "p_option_comma", "parser.py", 122),
+    ("option -> ID ASSIGN VALUE", "option", 3, "p_option_assign", "parser.py", 129),
 ]

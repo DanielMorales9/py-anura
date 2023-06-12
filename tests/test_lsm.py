@@ -4,12 +4,12 @@ from unittest.mock import patch
 
 import pytest as pytest
 
-from anura.constants import META_CONFIG, ComplexType, PrimitiveType
+from anura.constants import META_CONFIG, TypeEnum
 from anura.io import decode
 from anura.lsm import LSMTree, MemTable, Metadata, SSTable
 from anura.model import MemNode
 
-TEST_META = (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL)
+TEST_META = "key=LONG,value=LONG,tombstone=BOOL"
 
 
 @pytest.fixture
@@ -62,52 +62,36 @@ def test_flush_lsm(my_lsm):
         mock_method.assert_called()
 
 
-def setup_metadata(tmp_path, meta):
+def setup_metadata(tmp_path, meta="key=LONG,value=VARCHAR,tombstone=BOOL"):
     meta_data_path = tmp_path / "meta.data"
-    value_type = f"{meta[1][1]}[]" if isinstance(meta[1], tuple) else meta[1]
-
-    meta_data_path.write_text(f"key={meta[0]},value={value_type},tombstone={meta[2]}")
+    meta_data_path.write_text(meta)
     metadata = Metadata(tmp_path)
     return metadata
 
 
 TEST_DATA = [
-    (
-        [(i, i) for i in range(100)],
-        [0, 50],
-        (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL),
-    ),
+    ([(i, i) for i in range(100)], [0, 50], "key=LONG,value=LONG,tombstone=BOOL"),
     (
         [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
         ["key00", "key50"],
-        (PrimitiveType.VARCHAR, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
+        "key=VARCHAR,value=VARCHAR,tombstone=BOOL",
     ),
-    (
-        [(i, f"val{i:02d}") for i in range(100)],
-        [0, 50],
-        (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
-    ),
-    (
-        [(float(i), f"val{i:02d}") for i in range(100)],
-        [0, 50],
-        (PrimitiveType.DOUBLE, PrimitiveType.VARCHAR, PrimitiveType.BOOL),
-    ),
-    (
-        [(float(i), i) for i in range(100)],
-        [0, 50],
-        (PrimitiveType.FLOAT, PrimitiveType.INT, PrimitiveType.BOOL),
-    ),
-    (
-        [(i, float(i)) for i in range(100)],
-        [0, 50],
-        (PrimitiveType.SHORT, PrimitiveType.DOUBLE, PrimitiveType.BOOL),
-    ),
+    ([(i, f"val{i:02d}") for i in range(100)], [0, 50], "key=LONG,value=VARCHAR,tombstone=BOOL"),
+    ([(float(i), f"val{i:02d}") for i in range(100)], [0, 50], "key=DOUBLE,value=VARCHAR,tombstone=BOOL"),
+    ([(float(i), i) for i in range(100)], [0, 50], "key=FLOAT,value=INT,tombstone=BOOL"),
+    ([(i, float(i)) for i in range(100)], [0, 50], "key=SHORT,value=DOUBLE,tombstone=BOOL"),
     (
         # TODO simplify encoding for primitives
         [(i, [i, i]) for i in range(100)],
         [0, 50],
-        (PrimitiveType.LONG, (ComplexType.ARRAY, PrimitiveType.INT), PrimitiveType.BOOL),
+        "key=LONG,value=INT[],tombstone=BOOL",
     ),
+    # Test struct
+    # (
+    #     [(i, {i, f"val{i:02d}"}) for i in range(100)],
+    #     [0, 50],
+    #     "key=LONG,value={a=INT,b=VARCHAR},tombstone=BOOL",
+    # ),
 ]
 
 
@@ -190,8 +174,7 @@ def test_iter(tmp_path, data, index, meta):
     ],
 )
 def test_merge_tables(tmp_path, my_lsm, data, expected):
-    meta = (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL)
-    metadata = setup_metadata(tmp_path, meta)
+    metadata = setup_metadata(tmp_path)
 
     tables = []
     for serial, it, deleted in data:
@@ -212,16 +195,14 @@ def test_merge_tables(tmp_path, my_lsm, data, expected):
     ],
 )
 def test_search_empty_block(tmp_path, key, data):
-    meta = (PrimitiveType.LONG, PrimitiveType.VARCHAR, PrimitiveType.BOOL)
-    metadata = setup_metadata(tmp_path, meta)
+    metadata = setup_metadata(tmp_path)
     table = SSTable(tmp_path, metadata, serial=101)
     assert table._search(key, data) is None
 
 
 def test_find_lsm(my_lsm, tmp_path):
     # fixture setup
-    meta = (PrimitiveType.LONG, PrimitiveType.LONG, PrimitiveType.BOOL)
-    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, meta), serial=101)]
+    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, "key=LONG,value=LONG,tombstone=BOOL"), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm._find("key") is None
@@ -262,9 +243,9 @@ def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
         mock_method.assert_called_once_with("key")
 
 
-@pytest.mark.parametrize("meta", product(PrimitiveType, repeat=2))
+@pytest.mark.parametrize("meta", product(TypeEnum, repeat=2))
 def test_meta(tmp_path, meta):
-    metadata = setup_metadata(tmp_path, (*meta, PrimitiveType.BOOL))
+    metadata = setup_metadata(tmp_path, f"key={meta[0]},value={meta[1]},tombstone=BOOL")
     assert metadata.key_type["struct_symbol"] == META_CONFIG[meta[0]]["struct_symbol"]
     assert metadata.value_type["struct_symbol"] == META_CONFIG[meta[1]]["struct_symbol"]
 

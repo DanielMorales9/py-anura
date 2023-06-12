@@ -2,160 +2,261 @@ Created by PLY version 3.11 (http://www.dabeaz.com/ply)
 
 Grammar
 
-Rule 0     S' -> expression
-Rule 1     expression -> ID ASSIGN type
-Rule 2     type -> TYPE
-Rule 3     type -> TYPE LSQUARE RSQUARE
+Rule 0     S' -> calc
+Rule 1     calc -> expression
+Rule 2     calc -> empty
+Rule 3     empty -> <empty>
 Rule 4     expression -> expression COMMA expression
-Rule 5     expression -> LBRACE expression RBRACE
+Rule 5     expression -> ID ASSIGN type
+Rule 6     type -> type LPAREN option RPAREN
+Rule 7     type -> TYPE
+Rule 8     type -> LBRACE expression RBRACE
+Rule 9     type -> TYPE LSQUARE RSQUARE
+Rule 10    option -> option COMMA option
+Rule 11    option -> ID ASSIGN VALUE
 
 Terminals, with rules where they appear
 
-ASSIGN               : 1
-COMMA                : 4
-ID                   : 1
-LBRACE               : 5
-LSQUARE              : 3
-RBRACE               : 5
-RSQUARE              : 3
-TYPE                 : 2 3
+ASSIGN               : 5 11
+COMMA                : 4 10
+ID                   : 5 11
+LBRACE               : 8
+LPAREN               : 6
+LSQUARE              : 9
+RBRACE               : 8
+RPAREN               : 6
+RSQUARE              : 9
+TYPE                 : 7 9
+VALUE                : 11
 error                : 
 
 Nonterminals, with rules where they appear
 
-expression           : 4 4 5 0
-type                 : 1
+calc                 : 0
+empty                : 2
+expression           : 1 4 4 8
+option               : 6 10 10
+type                 : 5 6
 
 Parsing method: LALR
 
 state 0
 
-    (0) S' -> . expression
-    (1) expression -> . ID ASSIGN type
+    (0) S' -> . calc
+    (1) calc -> . expression
+    (2) calc -> . empty
     (4) expression -> . expression COMMA expression
-    (5) expression -> . LBRACE expression RBRACE
+    (5) expression -> . ID ASSIGN type
+    (3) empty -> .
 
-    ID              shift and go to state 2
-    LBRACE          shift and go to state 3
+    ID              shift and go to state 4
+    $end            reduce using rule 3 (empty -> .)
 
-    expression                     shift and go to state 1
+    calc                           shift and go to state 1
+    expression                     shift and go to state 2
+    empty                          shift and go to state 3
 
 state 1
 
-    (0) S' -> expression .
-    (4) expression -> expression . COMMA expression
+    (0) S' -> calc .
 
-    COMMA           shift and go to state 4
 
 
 state 2
 
-    (1) expression -> ID . ASSIGN type
+    (1) calc -> expression .
+    (4) expression -> expression . COMMA expression
 
-    ASSIGN          shift and go to state 5
+    $end            reduce using rule 1 (calc -> expression .)
+    COMMA           shift and go to state 5
 
 
 state 3
 
-    (5) expression -> LBRACE . expression RBRACE
-    (1) expression -> . ID ASSIGN type
-    (4) expression -> . expression COMMA expression
-    (5) expression -> . LBRACE expression RBRACE
+    (2) calc -> empty .
 
-    ID              shift and go to state 2
-    LBRACE          shift and go to state 3
+    $end            reduce using rule 2 (calc -> empty .)
 
-    expression                     shift and go to state 6
 
 state 4
 
-    (4) expression -> expression COMMA . expression
-    (1) expression -> . ID ASSIGN type
-    (4) expression -> . expression COMMA expression
-    (5) expression -> . LBRACE expression RBRACE
+    (5) expression -> ID . ASSIGN type
 
-    ID              shift and go to state 2
-    LBRACE          shift and go to state 3
+    ASSIGN          shift and go to state 6
 
-    expression                     shift and go to state 7
 
 state 5
 
-    (1) expression -> ID ASSIGN . type
-    (2) type -> . TYPE
-    (3) type -> . TYPE LSQUARE RSQUARE
+    (4) expression -> expression COMMA . expression
+    (4) expression -> . expression COMMA expression
+    (5) expression -> . ID ASSIGN type
 
-    TYPE            shift and go to state 9
+    ID              shift and go to state 4
 
-    type                           shift and go to state 8
+    expression                     shift and go to state 7
 
 state 6
 
-    (5) expression -> LBRACE expression . RBRACE
-    (4) expression -> expression . COMMA expression
+    (5) expression -> ID ASSIGN . type
+    (6) type -> . type LPAREN option RPAREN
+    (7) type -> . TYPE
+    (8) type -> . LBRACE expression RBRACE
+    (9) type -> . TYPE LSQUARE RSQUARE
 
-    RBRACE          shift and go to state 10
-    COMMA           shift and go to state 4
+    TYPE            shift and go to state 9
+    LBRACE          shift and go to state 10
 
+    type                           shift and go to state 8
 
 state 7
 
     (4) expression -> expression COMMA expression .
     (4) expression -> expression . COMMA expression
 
-  ! shift/reduce conflict for COMMA resolved as shift
+    COMMA           reduce using rule 4 (expression -> expression COMMA expression .)
     $end            reduce using rule 4 (expression -> expression COMMA expression .)
     RBRACE          reduce using rule 4 (expression -> expression COMMA expression .)
-    COMMA           shift and go to state 4
 
-  ! COMMA           [ reduce using rule 4 (expression -> expression COMMA expression .) ]
+  ! COMMA           [ shift and go to state 5 ]
 
 
 state 8
 
-    (1) expression -> ID ASSIGN type .
+    (5) expression -> ID ASSIGN type .
+    (6) type -> type . LPAREN option RPAREN
 
-    COMMA           reduce using rule 1 (expression -> ID ASSIGN type .)
-    $end            reduce using rule 1 (expression -> ID ASSIGN type .)
-    RBRACE          reduce using rule 1 (expression -> ID ASSIGN type .)
+    COMMA           reduce using rule 5 (expression -> ID ASSIGN type .)
+    $end            reduce using rule 5 (expression -> ID ASSIGN type .)
+    RBRACE          reduce using rule 5 (expression -> ID ASSIGN type .)
+    LPAREN          shift and go to state 11
 
 
 state 9
 
-    (2) type -> TYPE .
-    (3) type -> TYPE . LSQUARE RSQUARE
+    (7) type -> TYPE .
+    (9) type -> TYPE . LSQUARE RSQUARE
 
-    COMMA           reduce using rule 2 (type -> TYPE .)
-    $end            reduce using rule 2 (type -> TYPE .)
-    RBRACE          reduce using rule 2 (type -> TYPE .)
-    LSQUARE         shift and go to state 11
+    LPAREN          reduce using rule 7 (type -> TYPE .)
+    COMMA           reduce using rule 7 (type -> TYPE .)
+    $end            reduce using rule 7 (type -> TYPE .)
+    RBRACE          reduce using rule 7 (type -> TYPE .)
+    LSQUARE         shift and go to state 12
 
 
 state 10
 
-    (5) expression -> LBRACE expression RBRACE .
+    (8) type -> LBRACE . expression RBRACE
+    (4) expression -> . expression COMMA expression
+    (5) expression -> . ID ASSIGN type
 
-    COMMA           reduce using rule 5 (expression -> LBRACE expression RBRACE .)
-    $end            reduce using rule 5 (expression -> LBRACE expression RBRACE .)
-    RBRACE          reduce using rule 5 (expression -> LBRACE expression RBRACE .)
+    ID              shift and go to state 4
 
+    expression                     shift and go to state 13
 
 state 11
 
-    (3) type -> TYPE LSQUARE . RSQUARE
+    (6) type -> type LPAREN . option RPAREN
+    (10) option -> . option COMMA option
+    (11) option -> . ID ASSIGN VALUE
 
-    RSQUARE         shift and go to state 12
+    ID              shift and go to state 15
 
+    option                         shift and go to state 14
 
 state 12
 
-    (3) type -> TYPE LSQUARE RSQUARE .
+    (9) type -> TYPE LSQUARE . RSQUARE
 
-    COMMA           reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
-    $end            reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
-    RBRACE          reduce using rule 3 (type -> TYPE LSQUARE RSQUARE .)
+    RSQUARE         shift and go to state 16
 
-WARNING: 
-WARNING: Conflicts:
-WARNING: 
-WARNING: shift/reduce conflict for COMMA in state 7 resolved as shift
+
+state 13
+
+    (8) type -> LBRACE expression . RBRACE
+    (4) expression -> expression . COMMA expression
+
+    RBRACE          shift and go to state 17
+    COMMA           shift and go to state 5
+
+
+state 14
+
+    (6) type -> type LPAREN option . RPAREN
+    (10) option -> option . COMMA option
+
+    RPAREN          shift and go to state 18
+    COMMA           shift and go to state 19
+
+
+state 15
+
+    (11) option -> ID . ASSIGN VALUE
+
+    ASSIGN          shift and go to state 20
+
+
+state 16
+
+    (9) type -> TYPE LSQUARE RSQUARE .
+
+    LPAREN          reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
+    COMMA           reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
+    $end            reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
+    RBRACE          reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
+
+
+state 17
+
+    (8) type -> LBRACE expression RBRACE .
+
+    LPAREN          reduce using rule 8 (type -> LBRACE expression RBRACE .)
+    COMMA           reduce using rule 8 (type -> LBRACE expression RBRACE .)
+    $end            reduce using rule 8 (type -> LBRACE expression RBRACE .)
+    RBRACE          reduce using rule 8 (type -> LBRACE expression RBRACE .)
+
+
+state 18
+
+    (6) type -> type LPAREN option RPAREN .
+
+    LPAREN          reduce using rule 6 (type -> type LPAREN option RPAREN .)
+    COMMA           reduce using rule 6 (type -> type LPAREN option RPAREN .)
+    $end            reduce using rule 6 (type -> type LPAREN option RPAREN .)
+    RBRACE          reduce using rule 6 (type -> type LPAREN option RPAREN .)
+
+
+state 19
+
+    (10) option -> option COMMA . option
+    (10) option -> . option COMMA option
+    (11) option -> . ID ASSIGN VALUE
+
+    ID              shift and go to state 15
+
+    option                         shift and go to state 21
+
+state 20
+
+    (11) option -> ID ASSIGN . VALUE
+
+    VALUE           shift and go to state 22
+
+
+state 21
+
+    (10) option -> option COMMA option .
+    (10) option -> option . COMMA option
+
+    RPAREN          reduce using rule 10 (option -> option COMMA option .)
+    COMMA           reduce using rule 10 (option -> option COMMA option .)
+
+  ! COMMA           [ shift and go to state 19 ]
+
+
+state 22
+
+    (11) option -> ID ASSIGN VALUE .
+
+    RPAREN          reduce using rule 11 (option -> ID ASSIGN VALUE .)
+    COMMA           reduce using rule 11 (option -> ID ASSIGN VALUE .)
+
