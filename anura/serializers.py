@@ -113,14 +113,14 @@ def get_serializer_class(metatype: IType, class_type: str) -> Any:
     return globals()[encoder_class_name]()
 
 
-def _register_primitive_serializer_classes(class_type: str) -> None:
-    base_class = globals()[f"Primitive{class_type}"]
-    for name in PrimitiveTypeEnum:
-        # TODO simplify PRIMITIVE + VARCHAR
-        if name != PrimitiveTypeEnum.VARCHAR:
-            class_name = f"{normalize_name(name)}{class_type}"
-            globals()[class_name] = type(class_name, (base_class,), {})
+def _register_primitive_serializer_classes() -> None:
+    for serializer_name in SerializerEnum:
+        base_class = globals()[f"Primitive{serializer_name}"]
+        for name in PrimitiveTypeEnum:
+            # TODO simplify PRIMITIVE + VARCHAR
+            if name != PrimitiveTypeEnum.VARCHAR:
+                class_name = f"{normalize_name(name)}{serializer_name}"
+                globals()[class_name] = type(class_name, (base_class,), {})
 
 
-for serializer_name in SerializerEnum:
-    _register_primitive_serializer_classes(serializer_name)
+_register_primitive_serializer_classes()
