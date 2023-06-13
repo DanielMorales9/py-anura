@@ -34,3 +34,7 @@ def k_way_merge_sort(tables: List[Any], key: Optional[Callable[[Any], Any]] = No
         yield curr
         with contextlib.suppress(StopIteration):
             heapq.heappush(heap, (next(it), key, it))
+
+
+def normalize_name(name: str) -> str:
+    return "".join(el.capitalize() for el in name.split("_"))

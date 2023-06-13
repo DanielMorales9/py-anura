@@ -4,9 +4,12 @@ from ply.lex import lex
 from ply.yacc import yacc
 
 # All tokens must be named in advance.
-from anura.constants import META_CONFIG, TypeEnum
+from anura import types
+from anura.constants import DEFAULT_LENGTH_TYPE, PrimitiveTypeEnum
 
 # --- Tokenizer
+from anura.types import ArrayType, IType
+from anura.utils import normalize_name
 
 tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN", "VALUE")
 
@@ -19,7 +22,7 @@ t_LSQUARE = r"\["
 t_RSQUARE = r"\]"
 t_ASSIGN = r"="
 t_COMMA = r","
-t_TYPE = r"|".join(TypeEnum)
+t_TYPE = r"|".join(PrimitiveTypeEnum)
 t_ID = r"[a-zA-Z_][a-zA-Z_0-9]*"
 t_VALUE = r"[a-z-A-Z_0-9]+"
 
@@ -44,14 +47,12 @@ precedence = (
 )
 
 
-def create_array(p):
-    array_type = META_CONFIG["ARRAY"]
-    array_type["inner_type"] = META_CONFIG[p]
-    return array_type
+def create_array(p) -> IType:
+    return ArrayType(length_type=create_type(DEFAULT_LENGTH_TYPE), inner_type=create_type(p))
 
 
 def edit_options(_type, **options):
-    # TODO options of correct type
+    # TODO options validation
     # TODO edit options using class interface
     for key, value in options.items():
         if key in _type:
@@ -61,11 +62,14 @@ def edit_options(_type, **options):
     return _type
 
 
-def create_type(p):
-    return META_CONFIG[p]
+def create_type(p) -> IType:
+    extra = {}
+    if p == PrimitiveTypeEnum.VARCHAR:
+        extra["length_type"] = create_type(DEFAULT_LENGTH_TYPE)
+    return getattr(types, f"{normalize_name(p)}Type")(**extra)
 
 
-def run(p: Tuple | str) -> Dict[str, Any] | list:
+def run(p: Tuple | str) -> Dict[str, Any] | list | IType:
     if isinstance(p, tuple):
         if p[0] == "group":
             return {**run(p[1]), **run(p[2])}
@@ -74,6 +78,7 @@ def run(p: Tuple | str) -> Dict[str, Any] | list:
         elif p[0] == "array":
             return create_array(p[1])
         elif p[0] == "struct":
+            # TODO: create_struct(p[1])
             return [run(p[1])]
         elif p[0] == "option":
             _type = run(p[2])

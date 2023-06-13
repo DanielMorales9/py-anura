@@ -3,13 +3,14 @@ from datetime import datetime
 from gzip import compress, decompress
 from itertools import zip_longest
 from pathlib import Path
-from typing import Any, Dict, Generator, Generic, Iterator, List, Optional, Sequence, Tuple
+from typing import Any, Generator, Generic, Iterator, List, Optional, Sequence, Tuple
 
 from anura.btree import AVLTree
-from anura.constants import BLOCK_SIZE, META_CONFIG, SPARSE_IDX_EXT, SSTABLE_EXT, TypeEnum
+from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT
 from anura.io import decode, encode, read_block, write_from
 from anura.metadata.parser import parse
 from anura.model import K, MemNode, V
+from anura.types import IType, LongType
 from anura.utils import chunk, k_way_merge_sort
 
 
@@ -41,7 +42,6 @@ class MemTable(Generic[K, V]):
 class Metadata:
     def __init__(self, path: Path):
         self._path = path / "meta.data"
-        # TODO parsing of complex metadata like: struct, array, fixed-length char, varchar...
         with open(self._path) as f:
             self._meta = parse(f.read())
 
@@ -57,13 +57,12 @@ class Metadata:
     def tombstone_type(self) -> Any:
         return self._meta["tombstone"]
 
-    def __iter__(self) -> Iterator[Dict]:
+    def __iter__(self) -> Iterator[IType]:
         return iter((self.key_type, self.value_type, self.tombstone_type))
 
 
 class SSTable(Generic[K, V]):
-    # TODO refactor MetaConfig(PrimitiveType) approach
-    _offset_meta = META_CONFIG[TypeEnum.LONG]
+    _offset_meta = LongType()
 
     def __init__(self, path: Path, metadata: Metadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []

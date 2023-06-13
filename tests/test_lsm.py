@@ -1,13 +1,13 @@
 from gzip import decompress
-from itertools import product, zip_longest
+from itertools import zip_longest
 from unittest.mock import patch
 
 import pytest as pytest
 
-from anura.constants import META_CONFIG, TypeEnum
 from anura.io import decode
 from anura.lsm import LSMTree, MemTable, Metadata, SSTable
 from anura.model import MemNode
+from anura.types import ArrayType, PrimitiveType, VarcharType
 
 TEST_META = "key=LONG,value=LONG,tombstone=BOOL"
 
@@ -81,7 +81,6 @@ TEST_DATA = [
     ([(float(i), i) for i in range(100)], [0, 50], "key=FLOAT,value=INT,tombstone=BOOL"),
     ([(i, float(i)) for i in range(100)], [0, 50], "key=SHORT,value=DOUBLE,tombstone=BOOL"),
     (
-        # TODO simplify encoding for primitives
         [(i, [i, i]) for i in range(100)],
         [0, 50],
         "key=LONG,value=INT[],tombstone=BOOL",
@@ -243,18 +242,10 @@ def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
         mock_method.assert_called_once_with("key")
 
 
-@pytest.mark.parametrize("meta", product(TypeEnum, repeat=2))
-def test_meta(tmp_path, meta):
-    metadata = setup_metadata(tmp_path, f"key={meta[0]},value={meta[1]},tombstone=BOOL")
-    assert metadata.key_type["struct_symbol"] == META_CONFIG[meta[0]]["struct_symbol"]
-    assert metadata.value_type["struct_symbol"] == META_CONFIG[meta[1]]["struct_symbol"]
-
-
 def test_meta_array(tmp_path):
     meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text("key=VARCHAR[],value=VARCHAR[],tombstone=BOOL")
+    meta_data_path.write_text("key=VARCHAR,value=VARCHAR[],tombstone=BOOL")
     metadata = Metadata(tmp_path)
-    # TODO switch to dataclasses
-    assert isinstance(metadata._meta["key"], dict)
-    assert isinstance(metadata._meta["value"], dict)
-    assert isinstance(metadata._meta["tombstone"], dict)
+    assert isinstance(metadata._meta["key"], VarcharType)
+    assert isinstance(metadata._meta["value"], ArrayType)
+    assert isinstance(metadata._meta["tombstone"], PrimitiveType)
