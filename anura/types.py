@@ -1,68 +1,47 @@
-from typing import Dict
+from dataclasses import dataclass, field, make_dataclass
+from typing import Dict, Iterable, Type
 
-from anura.constants import DEFAULT_CHARSET
+from anura.constants import DEFAULT_CHARSET, META_PRIMITIVE_MAP
+from anura.utils import normalize_name
 
 
+@dataclass
 class IType:
-    def __init__(self, struct_symbol: str, base_size: int):
-        self.struct_symbol = struct_symbol
-        self.base_size = base_size
-
-
-class PrimitiveType(IType):
     pass
 
 
-class ShortType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="h", base_size=2)
+@dataclass
+class PrimitiveType(IType):
+    struct_symbol: str = "x"
+    base_size: int = 0
 
 
-class IntType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="i", base_size=4)
-
-
-class LongType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="l", base_size=4)
-
-
-class FloatType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="f", base_size=4)
-
-
-class DoubleType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="d", base_size=8)
-
-
-class BoolType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="?", base_size=1)
-
-
-class UnsignedShortType(PrimitiveType):
-    def __init__(self) -> None:
-        super().__init__(struct_symbol="H", base_size=2)
-
-
+@dataclass
 class VarcharType(IType):
-    def __init__(self, length_type: IType, charset: str = DEFAULT_CHARSET):
-        super().__init__(struct_symbol="s", base_size=1)
-        self.charset = charset
-        self.length_type = length_type
+    length_type: PrimitiveType
+    struct_symbol: str = "s"
+    base_size: int = 1
+    charset: str = DEFAULT_CHARSET
 
 
+@dataclass
 class ArrayType(IType):
-    def __init__(self, length_type: IType, inner_type: IType):
-        super().__init__(struct_symbol="x", base_size=0)
-        self.length_type = length_type
-        self.inner_type = inner_type
+    length_type: PrimitiveType
+    inner_type: IType
 
 
+@dataclass
 class StructType(IType):
-    def __init__(self, inner: Dict[str, IType]):
-        super().__init__(struct_symbol="x", base_size=0)
-        self.inner = inner
+    inner: Dict[str, IType]
+
+
+def register_primitive_types() -> None:
+    field_names = ["struct_symbol", "base_size"]
+    field_types: Iterable[Type] = [str, int]
+    for name, args in META_PRIMITIVE_MAP.items():
+        type_name = f"{normalize_name(name)}Type"
+        fields = [(name, _type, field(default=value)) for name, _type, value in zip(field_names, field_types, args)]
+        globals()[type_name] = make_dataclass(type_name, fields=fields, bases=(PrimitiveType,))
+
+
+register_primitive_types()

@@ -29,3 +29,12 @@ class ComplexTypeEnum(str, Enum):
 
 
 DEFAULT_LENGTH_TYPE = PrimitiveTypeEnum.UNSIGNED_SHORT
+META_PRIMITIVE_MAP = {
+    "SHORT": ("h", 2),
+    "INT": ("i", 4),
+    "LONG": ("l", 4),
+    "FLOAT": ("f", 4),
+    "DOUBLE": ("d", 8),
+    "BOOL": ("?", 1),
+    "UNSIGNED_SHORT": ("H", 2),
+}

@@ -10,7 +10,7 @@ from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT
 from anura.io import decode, encode, read_block, write_from
 from anura.metadata.parser import parse
 from anura.model import K, MemNode, V
-from anura.types import IType, LongType
+from anura.types import IType, LongType  # type: ignore[attr-defined]
 from anura.utils import chunk, k_way_merge_sort
 
 
