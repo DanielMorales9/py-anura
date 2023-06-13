@@ -18,6 +18,11 @@ class PrimitiveTypeEnum(str, Enum):
     UNSIGNED_SHORT = "UNSIGNED_SHORT"
 
 
+class SerializerEnum(str, Enum):
+    ENCODER = "Encoder"
+    DECODER = "Decoder"
+
+
 class ComplexTypeEnum(str, Enum):
     ARRAY = "ARRAY"
     # STRUCT = "STRUCT"

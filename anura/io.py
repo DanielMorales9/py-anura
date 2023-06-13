@@ -1,24 +1,25 @@
 from pathlib import Path
 from typing import Any, Iterator, Sequence
 
-from anura.types import IType
+from anura import types
+from anura.serializers import get_decoder, get_encoder
 
 
-def decode(block: bytes, metadata: Sequence[IType]) -> Iterator[Sequence[Any]]:
+def decode(block: bytes, metadata: Sequence[types.IType]) -> Iterator[Sequence[Any]]:
     i = 0
     while i < len(block):
         record = [None] * len(metadata)
         for j, metatype in enumerate(metadata):
-            el, offset = metatype.decode(block[i:])
+            el, offset = get_decoder(metatype).decode(block[i:], meta=metatype)
             record[j] = el
             i += offset
         yield record
 
 
-def encode(block: Sequence[Any], metadata: Sequence[IType]) -> Iterator[bytes]:
+def encode(block: Sequence[Any], metadata: Sequence[types.IType]) -> Iterator[bytes]:
     for record in block:
         for el, metatype in zip(record, metadata):
-            yield metatype.encode(el)
+            yield get_encoder(metatype).encode(el, meta=metatype)
 
 
 def write_from(path: Path | str, it: Iterator, mode: str = "wb") -> None:

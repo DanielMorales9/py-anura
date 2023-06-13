@@ -1,31 +1,16 @@
-import abc
-import struct
-from typing import Any, Dict, Tuple
+from typing import Dict
 
 from anura.constants import DEFAULT_CHARSET
 
 
-class IType(abc.ABC):
+class IType:
     def __init__(self, struct_symbol: str, base_size: int):
         self.struct_symbol = struct_symbol
         self.base_size = base_size
 
-    @abc.abstractmethod
-    def encode(self, field: Any) -> bytes:
-        pass
-
-    @abc.abstractmethod
-    def decode(self, block: bytes) -> Tuple[Any, int]:
-        pass
-
 
 class PrimitiveType(IType):
-    def encode(self, field: Any) -> bytes:
-        return struct.pack(f">{self.struct_symbol}", field)
-
-    def decode(self, block: bytes) -> Tuple[Any, int]:
-        res = struct.unpack(f">{self.struct_symbol}", block[: self.base_size])[0]
-        return res, self.base_size
+    pass
 
 
 class ShortType(PrimitiveType):
@@ -69,19 +54,6 @@ class VarcharType(IType):
         self.charset = charset
         self.length_type = length_type
 
-    def encode(self, field: Any) -> bytes:
-        length_symbol = self.length_type.struct_symbol
-        field = field.encode(self.charset)
-        size = len(field)
-        return struct.pack(f">{length_symbol}{size}{self.struct_symbol}", size, field)
-
-    def decode(self, block: bytes) -> Tuple[Any, int]:
-        size, offset = self.length_type.decode(block)
-        start, offset = offset, offset + self.base_size * size
-        res = struct.unpack(f">{size}{self.struct_symbol}", block[start:offset])[0]
-        res = res.decode(self.charset)
-        return res, offset
-
 
 class ArrayType(IType):
     def __init__(self, length_type: IType, inner_type: IType):
@@ -89,43 +61,8 @@ class ArrayType(IType):
         self.length_type = length_type
         self.inner_type = inner_type
 
-    def encode(self, field: Any) -> bytes:
-        length_symbol = self.length_type.struct_symbol
-        size = len(field)
-        res = struct.pack(f">{length_symbol}", size)
-        for el in field:
-            res += self.inner_type.encode(el)
-        return res
-
-    def decode(self, block: bytes) -> Tuple[Any, int]:
-        size, start = self.length_type.decode(block)
-
-        i = 0
-        res = []
-        while i < size:
-            el, offset = self.inner_type.decode(block[start:])
-            res.append(el)
-            i += 1
-            start += offset
-        return res, start
-
 
 class StructType(IType):
     def __init__(self, inner: Dict[str, IType]):
         super().__init__(struct_symbol="x", base_size=0)
         self.inner = inner
-
-    def encode(self, field: Any) -> bytes:
-        res = b""
-        for key, value in field.items():
-            res += self.inner[key].encode(value)
-        return res
-
-    def decode(self, block: bytes) -> Tuple[Any, int]:
-        start = 0
-        res: Dict[str, Any] = {}
-        for key, value in self.inner.items():
-            el, offset = value.decode(block[start:])
-            res[key] = el
-            start += offset
-        return res, start
