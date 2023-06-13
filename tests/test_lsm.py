@@ -85,12 +85,16 @@ TEST_DATA = [
         [0, 50],
         "key=LONG,value=INT[],tombstone=BOOL",
     ),
-    # Test struct
-    # (
-    #     [(i, {i, f"val{i:02d}"}) for i in range(100)],
-    #     [0, 50],
-    #     "key=LONG,value={a=INT,b=VARCHAR},tombstone=BOOL",
-    # ),
+    (
+        [(i, {"a": i, "b": f"val{i:02d}"}) for i in range(100)],
+        [0, 50],
+        "key=LONG,value={a=INT,b=VARCHAR},tombstone=BOOL",
+    ),
+    (
+        [(i, {"a": [0] * i, "b": f"val{i:02d}"}) for i in range(100)],
+        [0, 50],
+        "key=INT,value={a=INT[],b=VARCHAR},tombstone=BOOL",
+    ),
 ]
 
 

@@ -1,6 +1,6 @@
 import abc
 import struct
-from typing import Any, Tuple
+from typing import Any, Dict, Tuple
 
 from anura.constants import DEFAULT_CHARSET
 
@@ -103,8 +103,29 @@ class ArrayType(IType):
         i = 0
         res = []
         while i < size:
-            inner, offset = self.inner_type.decode(block[start:])
-            res.append(inner)
+            el, offset = self.inner_type.decode(block[start:])
+            res.append(el)
             i += 1
+            start += offset
+        return res, start
+
+
+class StructType(IType):
+    def __init__(self, inner: Dict[str, IType]):
+        super().__init__(struct_symbol="x", base_size=0)
+        self.inner = inner
+
+    def encode(self, field: Any) -> bytes:
+        res = b""
+        for key, value in field.items():
+            res += self.inner[key].encode(value)
+        return res
+
+    def decode(self, block: bytes) -> Tuple[Any, int]:
+        start = 0
+        res: Dict[str, Any] = {}
+        for key, value in self.inner.items():
+            el, offset = value.decode(block[start:])
+            res[key] = el
             start += offset
         return res, start

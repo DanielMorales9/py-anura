@@ -8,7 +8,7 @@ from anura import types
 from anura.constants import DEFAULT_LENGTH_TYPE, PrimitiveTypeEnum
 
 # --- Tokenizer
-from anura.types import ArrayType, IType
+from anura.types import ArrayType, IType, StructType
 from anura.utils import normalize_name
 
 tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN", "VALUE")
@@ -78,8 +78,7 @@ def run(p: Tuple | str) -> Dict[str, Any] | list | IType:
         elif p[0] == "array":
             return create_array(p[1])
         elif p[0] == "struct":
-            # TODO: create_struct(p[1])
-            return [run(p[1])]
+            return StructType(run(p[1]))
         elif p[0] == "option":
             _type = run(p[2])
             return edit_options(_type)
