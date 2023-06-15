@@ -1,14 +1,15 @@
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, Sequence, Tuple, Type
 
 from ply.lex import lex
 from ply.yacc import yacc
 
 # All tokens must be named in advance.
 from anura import types
-from anura.constants import DEFAULT_LENGTH_TYPE, PrimitiveTypeEnum
+from anura.constants import PrimitiveTypeEnum
 
 # --- Tokenizer
-from anura.types import ArrayType, IType, StructType
+from anura.metadata.exceptions import ParsingError
+from anura.types import ArrayType, IType, PrimitiveType, StructType
 from anura.utils import normalize_name
 
 tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN", "VALUE")
@@ -23,8 +24,14 @@ t_RSQUARE = r"\]"
 t_ASSIGN = r"="
 t_COMMA = r","
 t_TYPE = r"|".join(PrimitiveTypeEnum)
-t_ID = r"[a-zA-Z_][a-zA-Z_0-9]*"
-t_VALUE = r"[a-z-A-Z_0-9]+"
+t_ID = r"[a-zA-Z][a-zA-Z_0-9-]*"
+
+
+def t_VALUE(t):
+    r"'[a-z-A-Z_0-9-]+'"
+    t.value = t.value[1:-1]
+    return t
+
 
 t_ignore = r" "
 
@@ -48,40 +55,76 @@ precedence = (
 
 
 def create_array(p) -> IType:
-    return ArrayType(length_type=create_type(DEFAULT_LENGTH_TYPE), inner_type=create_type(p))
+    return ArrayType(inner_type=create_type(p))
 
 
-def edit_options(_type, **options):
-    # TODO options validation
-    # TODO edit options using class interface
-    for key, value in options.items():
-        if key in _type:
-            _type[key] = value
-        else:
-            raise ValueError(f"{key} not allowed")
-    return _type
+def is_builtin_type(source_type: Type) -> bool:
+    return source_type.__module__ == "builtins"
 
 
-def create_type(p) -> IType:
-    extra = {}
-    if p == PrimitiveTypeEnum.VARCHAR:
-        extra["length_type"] = create_type(DEFAULT_LENGTH_TYPE)
-    return getattr(types, f"{normalize_name(p)}Type")(**extra)
+def edit_options(anura_type, **options):
+    for field, value in options.items():
+        validate_has_attribute(anura_type, field)
+
+        field_type = type(getattr(anura_type, field))
+        if not isinstance(value, field_type):
+            value = convert_value_to_field_type(field_type, value)
+
+        setattr(anura_type, field, value)
+
+    return anura_type
 
 
-def run(p: Tuple | str) -> Dict[str, Any] | list | IType:
+def convert_value_to_field_type(field_type: Type, value: str) -> Any:
+    if is_builtin_type(field_type):
+        value = convert_to_builtin_type(field_type, value)
+    elif issubclass(field_type, PrimitiveType):
+        value = convert_to_primitive_type(value)
+    else:
+        raise ValueError(f"Unknown {field_type}")
+    return value
+
+
+def convert_to_primitive_type(value: str) -> PrimitiveType:
+    if value not in list(PrimitiveTypeEnum):
+        raise ValueError(f"'{value}' is not a PrimitiveType")
+    return getattr(types, f"{normalize_name(value)}Type")()
+
+
+def convert_to_builtin_type(field_type: Type, value: str) -> Any:
+    try:
+        value = field_type(value)
+    except ValueError as e:
+        raise ValueError(f"'{value}' cannot be cast to {field_type.__name__}") from e
+    return value
+
+
+def validate_has_attribute(anura_type: str, field: str) -> None:
+    type_name = anura_type.__class__.__name__
+    if not hasattr(anura_type, field):
+        raise AttributeError(f"Attribute '{field}' not found in {type_name}")
+
+
+def create_type(p: str) -> IType:
+    return getattr(types, f"{normalize_name(p)}Type")()
+
+
+def run(p: Tuple | str, is_option: bool = False) -> Any:
     if isinstance(p, tuple):
         if p[0] == "group":
-            return {**run(p[1]), **run(p[2])}
+            return {**run(p[1], is_option), **run(p[2], is_option)}
         elif p[0] == "assign":
-            return {p[1]: run(p[2])}
+            return {p[1]: run(p[2], is_option)}
         elif p[0] == "array":
             return create_array(p[1])
         elif p[0] == "struct":
             return StructType(run(p[1]))
         elif p[0] == "option":
             _type = run(p[2])
-            return edit_options(_type)
+            options = run(p[1], is_option=True)
+            return edit_options(_type, **options)
+    elif is_option:
+        return p
     else:
         return create_type(p)
 
@@ -159,7 +202,7 @@ def p_option_assign(p):
 
 def p_error(p):
     print("Syntax error in input!")
-    print(p)
+    raise ParsingError(p)
 
 
 # Build the lexer object

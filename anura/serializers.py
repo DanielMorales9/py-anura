@@ -2,7 +2,7 @@ import abc
 import struct
 from typing import Any, Tuple
 
-from anura.constants import PrimitiveTypeEnum, SerializerEnum
+from anura.constants import PrimitiveTypeEnum, Serializer
 from anura.types import ArrayType, IType, PrimitiveType, StructType, VarcharType
 from anura.utils import normalize_name
 
@@ -100,12 +100,14 @@ class StructDecoder(IDecoder):
         return res, start
 
 
+# TODO: add caching and test
 def get_decoder(metatype: IType) -> IDecoder:
-    return get_serializer_class(metatype, SerializerEnum.DECODER)  # type: ignore[no-any-return]
+    return get_serializer_class(metatype, Serializer.DECODER)  # type: ignore[no-any-return]
 
 
+# TODO: add caching and test
 def get_encoder(metatype: IType) -> IEncoder:
-    return get_serializer_class(metatype, SerializerEnum.ENCODER)  # type: ignore[no-any-return]
+    return get_serializer_class(metatype, Serializer.ENCODER)  # type: ignore[no-any-return]
 
 
 def get_serializer_class(metatype: IType, class_type: str) -> Any:
@@ -114,7 +116,7 @@ def get_serializer_class(metatype: IType, class_type: str) -> Any:
 
 
 def _register_primitive_serializer_classes() -> None:
-    for serializer_name in SerializerEnum:
+    for serializer_name in Serializer:
         base_class = globals()[f"Primitive{serializer_name}"]
         for name in PrimitiveTypeEnum:
             # TODO simplify PRIMITIVE + VARCHAR
