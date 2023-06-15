@@ -5,9 +5,7 @@ SSTABLE_EXT = "sst"
 SPARSE_IDX_EXT = "spx"
 
 
-class PrimitiveTypeEnum(str, Enum):
-    # TODO is varchar primitive
-    VARCHAR = "VARCHAR"
+class PrimitiveType(str, Enum):
     SHORT = "SHORT"
     INT = "INT"
     LONG = "LONG"
@@ -15,6 +13,12 @@ class PrimitiveTypeEnum(str, Enum):
     DOUBLE = "DOUBLE"
     BOOL = "BOOL"
     UNSIGNED_SHORT = "UNSIGNED_SHORT"
+    UNSIGNED_INT = "UNSIGNED_INT"
+    UNSIGNED_LONG = "UNSIGNED_LONG"
+
+
+class ComplexType(str, Enum):
+    VARCHAR = "VARCHAR"
 
 
 class Serializer(str, Enum):

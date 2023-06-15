@@ -1,8 +1,9 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Type
 
-from anura.constants import Charset
+from anura.constants import Charset, PrimitiveType
+from anura.utils import convert_to_builtin_type, is_builtin_type, normalize_name
 
 
 @dataclass
@@ -22,7 +23,8 @@ class IType:
 
 
 @dataclass
-class PrimitiveType(IType):
+class APrimitiveType(IType):
+    # TODO improve design
     _struct_symbol: str
     _base_size: int
 
@@ -36,58 +38,70 @@ class PrimitiveType(IType):
 
 
 @dataclass
-class ShortType(PrimitiveType):
+class ShortType(APrimitiveType):
     _struct_symbol: str = "h"
     _base_size: int = 2
 
 
 @dataclass
-class IntType(PrimitiveType):
+class IntType(APrimitiveType):
     _struct_symbol: str = "i"
     _base_size: int = 4
 
 
 @dataclass
-class LongType(PrimitiveType):
+class LongType(APrimitiveType):
     _struct_symbol: str = "l"
     _base_size: int = 4
 
 
 @dataclass
-class FloatType(PrimitiveType):
+class FloatType(APrimitiveType):
     _struct_symbol: str = "f"
     _base_size: int = 4
 
 
 @dataclass
-class DoubleType(PrimitiveType):
+class DoubleType(APrimitiveType):
     _struct_symbol: str = "d"
     _base_size: int = 8
 
 
 @dataclass
-class BoolType(PrimitiveType):
+class BoolType(APrimitiveType):
     _struct_symbol: str = "?"
     _base_size: int = 1
 
 
 @dataclass
-class UnsignedShortType(PrimitiveType):
+class UnsignedShortType(APrimitiveType):
     _struct_symbol: str = "H"
     _base_size: int = 2
 
 
-def _validate_length_type(value: PrimitiveType) -> None:
-    if not isinstance(value, (LongType, UnsignedShortType, IntType)):
+@dataclass
+class UnsignedIntType(APrimitiveType):
+    _struct_symbol: str = "I"
+    _base_size: int = 4
+
+
+@dataclass
+class UnsignedLongType(APrimitiveType):
+    _struct_symbol: str = "L"
+    _base_size: int = 4
+
+
+def _validate_length_type(value: APrimitiveType) -> None:
+    if not isinstance(value, (UnsignedShortType, UnsignedIntType, UnsignedLongType)):
         raise TypeError(f"'{value.__class__.__name__}' is not a valid length type")
 
 
 @dataclass
-class VarcharType(PrimitiveType):
+class VarcharType(APrimitiveType):
     _struct_symbol: str = "s"
     _base_size: int = 1
     charset: str = Charset.UTF_8.value
-    length_type: PrimitiveType = UnsignedShortType()
+    length_type: APrimitiveType = UnsignedShortType()
     one_more_type: int = 10
 
     def _validate_charset(self, value: str) -> None:
@@ -96,20 +110,39 @@ class VarcharType(PrimitiveType):
 
     # TODO refactor using decorators
     @staticmethod
-    def _validate_length_type(value: PrimitiveType) -> None:
+    def _validate_length_type(value: APrimitiveType) -> None:
         _validate_length_type(value)
 
 
 @dataclass
 class ArrayType(IType):
     inner_type: IType
-    length_type: PrimitiveType = UnsignedShortType()
+    length_type: APrimitiveType = UnsignedShortType()
 
     @staticmethod
-    def _validate_length_type(value: PrimitiveType) -> None:
+    def _validate_length_type(value: APrimitiveType) -> None:
         _validate_length_type(value)
 
 
 @dataclass
 class StructType(IType):
     inner: Dict[str, IType]
+
+
+# TODO add type Timestamp
+# TODO add type Date
+# TODO add type Char
+def convert_to_primitive_type(value: str) -> APrimitiveType:
+    if value not in list(PrimitiveType):
+        raise ValueError(f"'{value}' is not a PrimitiveType")
+    return globals()[f"{normalize_name(value)}Type"]()  # type: ignore[no-any-return]
+
+
+def convert_value_to_field_type(field_type: Type, value: str) -> Any:
+    if is_builtin_type(field_type):
+        return convert_to_builtin_type(field_type, value)
+
+    if issubclass(field_type, APrimitiveType):
+        return convert_to_primitive_type(value)
+
+    raise ValueError(f"Unknown {field_type}")

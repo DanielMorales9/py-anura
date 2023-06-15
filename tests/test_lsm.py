@@ -7,7 +7,7 @@ import pytest as pytest
 from anura.io import decode
 from anura.lsm import LSMTree, MemTable, Metadata, SSTable
 from anura.model import MemNode
-from anura.types import ArrayType, PrimitiveType, VarcharType  # type: ignore[attr-defined]
+from anura.types import APrimitiveType, ArrayType, VarcharType  # type: ignore[attr-defined]
 
 TEST_META = "key=LONG,value=LONG,tombstone=BOOL"
 
@@ -103,7 +103,7 @@ TEST_DATA = [
     (
         [(i, f"val{i:02d}") for i in range(100)],
         [0, 50],
-        "key=INT,value=VARCHAR(charset='ascii',length_type='INT'),tombstone=BOOL",
+        "key=INT,value=VARCHAR(charset='ascii',length_type='UNSIGNED_INT'),tombstone=BOOL",
     ),
 ]
 
@@ -262,4 +262,4 @@ def test_meta_array(tmp_path):
     metadata = Metadata(tmp_path)
     assert isinstance(metadata._meta["key"], VarcharType)
     assert isinstance(metadata._meta["value"], ArrayType)
-    assert isinstance(metadata._meta["tombstone"], PrimitiveType)
+    assert isinstance(metadata._meta["tombstone"], APrimitiveType)

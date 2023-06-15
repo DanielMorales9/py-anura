@@ -9,7 +9,7 @@ _lr_signature = (
     "leftCOMMAleftASSIGNASSIGN COMMA ID LBRACE LPAREN LSQUARE RBRACE RPAREN RSQUARE TYPE VALUE\n    calc : expression\n"
     "         | empty\n    \n    empty :\n    \n    expression : expression COMMA expression\n    \n    expression : ID"
     " ASSIGN type\n    \n    type : type LPAREN option RPAREN\n    \n    type : TYPE\n    \n    type : LBRACE"
-    " expression RBRACE\n    \n    type : TYPE LSQUARE RSQUARE\n    \n    option : option COMMA option\n    \n   "
+    " expression RBRACE\n    \n    type : type LSQUARE RSQUARE\n    \n    option : option COMMA option\n    \n   "
     " option : ID ASSIGN VALUE\n    "
 )
 
@@ -148,10 +148,18 @@ _lr_action_items = {
     ),
     "LSQUARE": (
         [
+            8,
             9,
+            16,
+            17,
+            18,
         ],
         [
             12,
+            -7,
+            -9,
+            -8,
+            -6,
         ],
     ),
     "RSQUARE": (
@@ -250,15 +258,15 @@ for _k, _v in _lr_goto_items.items():
 del _lr_goto_items
 _lr_productions = [
     ("S' -> calc", "S'", 1, None, None, None),
-    ("calc -> expression", "calc", 1, "p_calc", "parser.py", 99),
-    ("calc -> empty", "calc", 1, "p_calc", "parser.py", 100),
-    ("empty -> <empty>", "empty", 0, "p_empty", "parser.py", 107),
-    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "parser.py", 114),
-    ("expression -> ID ASSIGN type", "expression", 3, "p_expression", "parser.py", 121),
-    ("type -> type LPAREN option RPAREN", "type", 4, "p_type_with_option", "parser.py", 128),
-    ("type -> TYPE", "type", 1, "p_type", "parser.py", 135),
-    ("type -> LBRACE expression RBRACE", "type", 3, "p_type_struct", "parser.py", 142),
-    ("type -> TYPE LSQUARE RSQUARE", "type", 3, "p_type_array", "parser.py", 149),
-    ("option -> option COMMA option", "option", 3, "p_option_comma", "parser.py", 156),
-    ("option -> ID ASSIGN VALUE", "option", 3, "p_option_assign", "parser.py", 163),
+    ("calc -> expression", "calc", 1, "p_calc", "parser.py", 134),
+    ("calc -> empty", "calc", 1, "p_calc", "parser.py", 135),
+    ("empty -> <empty>", "empty", 0, "p_empty", "parser.py", 142),
+    ("expression -> expression COMMA expression", "expression", 3, "p_expression_comma", "parser.py", 149),
+    ("expression -> ID ASSIGN type", "expression", 3, "p_expression", "parser.py", 156),
+    ("type -> type LPAREN option RPAREN", "type", 4, "p_type_with_option", "parser.py", 163),
+    ("type -> TYPE", "type", 1, "p_type", "parser.py", 170),
+    ("type -> LBRACE expression RBRACE", "type", 3, "p_type_struct", "parser.py", 177),
+    ("type -> type LSQUARE RSQUARE", "type", 3, "p_type_array", "parser.py", 184),
+    ("option -> option COMMA option", "option", 3, "p_option_comma", "parser.py", 191),
+    ("option -> ID ASSIGN VALUE", "option", 3, "p_option_assign", "parser.py", 198),
 ]

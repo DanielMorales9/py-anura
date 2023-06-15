@@ -1,19 +1,22 @@
-from typing import Any, Dict, Sequence, Tuple, Type
+import abc
+from typing import Any, Dict, Sequence
 
 from ply.lex import lex
 from ply.yacc import yacc
 
 # All tokens must be named in advance.
 from anura import types
-from anura.constants import PrimitiveTypeEnum
+from anura.constants import ComplexType, PrimitiveType
 
 # --- Tokenizer
 from anura.metadata.exceptions import ParsingError
-from anura.types import ArrayType, IType, PrimitiveType, StructType
+from anura.types import ArrayType, IType, StructType, convert_value_to_field_type
 from anura.utils import normalize_name
 
-tokens = ("ID", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN", "VALUE")
+tokens = ("ID", "VALUE", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN")
 
+basic_types = list(PrimitiveType)
+basic_types.append(ComplexType.VARCHAR)
 # Token matching rules are written as regex
 t_LBRACE = r"\{"
 t_RBRACE = r"\}"
@@ -23,7 +26,7 @@ t_LSQUARE = r"\["
 t_RSQUARE = r"\]"
 t_ASSIGN = r"="
 t_COMMA = r","
-t_TYPE = r"|".join(PrimitiveTypeEnum)
+t_TYPE = r"|".join(basic_types)
 t_ID = r"[a-zA-Z][a-zA-Z_0-9-]*"
 
 
@@ -54,79 +57,112 @@ precedence = (
 )
 
 
-def create_array(p) -> IType:
-    return ArrayType(inner_type=create_type(p))
+class AOp(abc.ABC):
+    @abc.abstractmethod
+    def __call__(self) -> Any:
+        pass
+
+    def build(self):
+        return self()
 
 
-def is_builtin_type(source_type: Type) -> bool:
-    return source_type.__module__ == "builtins"
+class TerminalOp(AOp):
+    def __init__(self, terminal: Any):
+        self._terminal = terminal
+
+    def __call__(self) -> Any:
+        return getattr(types, f"{normalize_name(self._terminal)}Type")()
+
+    def __repr__(self):
+        return f"Group({self._terminal})"
 
 
-def edit_options(anura_type, **options):
-    for field, value in options.items():
-        validate_has_attribute(anura_type, field)
+class LiteralOp(AOp):
+    def __init__(self, literal: Any):
+        self._literal = literal
 
-        field_type = type(getattr(anura_type, field))
-        if not isinstance(value, field_type):
-            value = convert_value_to_field_type(field_type, value)
+    def __call__(self) -> Any:
+        return self._literal
 
-        setattr(anura_type, field, value)
-
-    return anura_type
+    def __repr__(self):
+        return f"Literal({self._literal})"
 
 
-def convert_value_to_field_type(field_type: Type, value: str) -> Any:
-    if is_builtin_type(field_type):
-        value = convert_to_builtin_type(field_type, value)
-    elif issubclass(field_type, PrimitiveType):
-        value = convert_to_primitive_type(value)
-    else:
-        raise ValueError(f"Unknown {field_type}")
-    return value
+class GroupOp(AOp):
+    def __init__(self, left: Any, right: Any) -> None:
+        self._left = left
+        self._right = right
+
+    def __call__(self) -> Dict:
+        return {**self._left(), **self._right()}
+
+    def __repr__(self):
+        return f"Group({self._left}, {self._right})"
 
 
-def convert_to_primitive_type(value: str) -> PrimitiveType:
-    if value not in list(PrimitiveTypeEnum):
-        raise ValueError(f"'{value}' is not a PrimitiveType")
-    return getattr(types, f"{normalize_name(value)}Type")()
+class AssignOp(AOp):
+    def __init__(self, left: Any, right: Any) -> None:
+        self._left = left
+        self._right = right
+
+    def __call__(self) -> Dict:
+        return {self._left: self._right()}
+
+    def __repr__(self):
+        return f"Assign({self._left}, {self._right})"
 
 
-def convert_to_builtin_type(field_type: Type, value: str) -> Any:
-    try:
-        value = field_type(value)
-    except ValueError as e:
-        raise ValueError(f"'{value}' cannot be cast to {field_type.__name__}") from e
-    return value
+class ArrayOp(AOp):
+    def __init__(self, inner_type: Any) -> None:
+        self._inner = inner_type
+
+    def __call__(self) -> ArrayType:
+        return ArrayType(self._inner())
+
+    def __repr__(self):
+        return f"Array({self._inner})"
 
 
-def validate_has_attribute(anura_type: str, field: str) -> None:
+class StructOp(AOp):
+    def __init__(self, inner_type: Any) -> None:
+        self._inner = inner_type
+
+    def __call__(self) -> StructType:
+        return StructType(self._inner())
+
+    def __repr__(self):
+        return f"Struct({self._inner})"
+
+
+def validate_has_attribute(anura_type: IType, field: str) -> None:
     type_name = anura_type.__class__.__name__
     if not hasattr(anura_type, field):
         raise AttributeError(f"Attribute '{field}' not found in {type_name}")
 
 
-def create_type(p: str) -> IType:
-    return getattr(types, f"{normalize_name(p)}Type")()
+class OptionOp(AOp):
+    def __init__(self, left: Any, right: Any) -> None:
+        self._left = left
+        self._right = right
 
+    @staticmethod
+    def add_options_to_type(anura_type: IType, options: Dict[str, str]) -> IType:
+        for field, value in options.items():
+            validate_has_attribute(anura_type, field)
 
-def run(p: Tuple | str, is_option: bool = False) -> Any:
-    if isinstance(p, tuple):
-        if p[0] == "group":
-            return {**run(p[1], is_option), **run(p[2], is_option)}
-        elif p[0] == "assign":
-            return {p[1]: run(p[2], is_option)}
-        elif p[0] == "array":
-            return create_array(p[1])
-        elif p[0] == "struct":
-            return StructType(run(p[1]))
-        elif p[0] == "option":
-            _type = run(p[2])
-            options = run(p[1], is_option=True)
-            return edit_options(_type, **options)
-    elif is_option:
-        return p
-    else:
-        return create_type(p)
+            field_type = type(getattr(anura_type, field))
+            if not isinstance(value, field_type):
+                value = convert_value_to_field_type(field_type, value)
+
+            setattr(anura_type, field, value)
+
+        return anura_type
+
+    def __call__(self) -> IType:
+        return self.add_options_to_type(self._left(), self._right())
+
+    def __repr__(self):
+        return f"Assign({self._left}, {self._right})"
 
 
 def p_calc(p):
@@ -148,56 +184,56 @@ def p_expression_comma(p):
     """
     expression : expression COMMA expression
     """
-    p[0] = ("group", p[1], p[3])
+    p[0] = GroupOp(p[1], p[3])
 
 
 def p_expression(p):
     """
     expression : ID ASSIGN type
     """
-    p[0] = ("assign", p[1], p[3])
+    p[0] = AssignOp(p[1], p[3])
 
 
 def p_type_with_option(p):
     """
     type : type LPAREN option RPAREN
     """
-    p[0] = ("option", p[3], p[1])
+    p[0] = OptionOp(p[1], p[3])
 
 
 def p_type(p):
     """
     type : TYPE
     """
-    p[0] = p[1]
+    p[0] = TerminalOp(p[1])
 
 
 def p_type_struct(p):
     """
     type : LBRACE expression RBRACE
     """
-    p[0] = ("struct", p[2])
+    p[0] = StructOp(p[2])
 
 
 def p_type_array(p):
     """
-    type : TYPE LSQUARE RSQUARE
+    type : type LSQUARE RSQUARE
     """
-    p[0] = ("array", p[1])
+    p[0] = ArrayOp(p[1])
 
 
 def p_option_comma(p):
     """
     option : option COMMA option
     """
-    p[0] = ("group", p[1], p[3])
+    p[0] = GroupOp(p[1], p[3])
 
 
 def p_option_assign(p):
     """
     option : ID ASSIGN VALUE
     """
-    p[0] = ("assign", p[1], p[3])
+    p[0] = AssignOp(p[1], LiteralOp(p[3]))
 
 
 def p_error(p):
@@ -213,4 +249,5 @@ parser = yacc()
 
 
 def parse(seq: Sequence[Any]) -> Dict[str, Any]:
-    return run(parser.parse(seq))
+    ast = parser.parse(seq)
+    return ast.build()

@@ -11,7 +11,7 @@ Rule 5     expression -> ID ASSIGN type
 Rule 6     type -> type LPAREN option RPAREN
 Rule 7     type -> TYPE
 Rule 8     type -> LBRACE expression RBRACE
-Rule 9     type -> TYPE LSQUARE RSQUARE
+Rule 9     type -> type LSQUARE RSQUARE
 Rule 10    option -> option COMMA option
 Rule 11    option -> ID ASSIGN VALUE
 
@@ -26,7 +26,7 @@ LSQUARE              : 9
 RBRACE               : 8
 RPAREN               : 6
 RSQUARE              : 9
-TYPE                 : 7 9
+TYPE                 : 7
 VALUE                : 11
 error                : 
 
@@ -36,7 +36,7 @@ calc                 : 0
 empty                : 2
 expression           : 1 4 4 8
 option               : 6 10 10
-type                 : 5 6
+type                 : 5 6 9
 
 Parsing method: LALR
 
@@ -101,7 +101,7 @@ state 6
     (6) type -> . type LPAREN option RPAREN
     (7) type -> . TYPE
     (8) type -> . LBRACE expression RBRACE
-    (9) type -> . TYPE LSQUARE RSQUARE
+    (9) type -> . type LSQUARE RSQUARE
 
     TYPE            shift and go to state 9
     LBRACE          shift and go to state 10
@@ -124,23 +124,24 @@ state 8
 
     (5) expression -> ID ASSIGN type .
     (6) type -> type . LPAREN option RPAREN
+    (9) type -> type . LSQUARE RSQUARE
 
     COMMA           reduce using rule 5 (expression -> ID ASSIGN type .)
     $end            reduce using rule 5 (expression -> ID ASSIGN type .)
     RBRACE          reduce using rule 5 (expression -> ID ASSIGN type .)
     LPAREN          shift and go to state 11
+    LSQUARE         shift and go to state 12
 
 
 state 9
 
     (7) type -> TYPE .
-    (9) type -> TYPE . LSQUARE RSQUARE
 
     LPAREN          reduce using rule 7 (type -> TYPE .)
+    LSQUARE         reduce using rule 7 (type -> TYPE .)
     COMMA           reduce using rule 7 (type -> TYPE .)
     $end            reduce using rule 7 (type -> TYPE .)
     RBRACE          reduce using rule 7 (type -> TYPE .)
-    LSQUARE         shift and go to state 12
 
 
 state 10
@@ -165,7 +166,7 @@ state 11
 
 state 12
 
-    (9) type -> TYPE LSQUARE . RSQUARE
+    (9) type -> type LSQUARE . RSQUARE
 
     RSQUARE         shift and go to state 16
 
@@ -197,12 +198,13 @@ state 15
 
 state 16
 
-    (9) type -> TYPE LSQUARE RSQUARE .
+    (9) type -> type LSQUARE RSQUARE .
 
-    LPAREN          reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
-    COMMA           reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
-    $end            reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
-    RBRACE          reduce using rule 9 (type -> TYPE LSQUARE RSQUARE .)
+    LPAREN          reduce using rule 9 (type -> type LSQUARE RSQUARE .)
+    LSQUARE         reduce using rule 9 (type -> type LSQUARE RSQUARE .)
+    COMMA           reduce using rule 9 (type -> type LSQUARE RSQUARE .)
+    $end            reduce using rule 9 (type -> type LSQUARE RSQUARE .)
+    RBRACE          reduce using rule 9 (type -> type LSQUARE RSQUARE .)
 
 
 state 17
@@ -210,6 +212,7 @@ state 17
     (8) type -> LBRACE expression RBRACE .
 
     LPAREN          reduce using rule 8 (type -> LBRACE expression RBRACE .)
+    LSQUARE         reduce using rule 8 (type -> LBRACE expression RBRACE .)
     COMMA           reduce using rule 8 (type -> LBRACE expression RBRACE .)
     $end            reduce using rule 8 (type -> LBRACE expression RBRACE .)
     RBRACE          reduce using rule 8 (type -> LBRACE expression RBRACE .)
@@ -220,6 +223,7 @@ state 18
     (6) type -> type LPAREN option RPAREN .
 
     LPAREN          reduce using rule 6 (type -> type LPAREN option RPAREN .)
+    LSQUARE         reduce using rule 6 (type -> type LPAREN option RPAREN .)
     COMMA           reduce using rule 6 (type -> type LPAREN option RPAREN .)
     $end            reduce using rule 6 (type -> type LPAREN option RPAREN .)
     RBRACE          reduce using rule 6 (type -> type LPAREN option RPAREN .)

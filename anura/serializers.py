@@ -2,9 +2,11 @@ import abc
 import struct
 from typing import Any, Tuple
 
-from anura.constants import PrimitiveTypeEnum, Serializer
-from anura.types import ArrayType, IType, PrimitiveType, StructType, VarcharType
+from anura.constants import PrimitiveType, Serializer
+from anura.types import APrimitiveType, ArrayType, IType, StructType, VarcharType
 from anura.utils import normalize_name
+
+# TODO introduce LazyDecoder
 
 
 class IEncoder(abc.ABC):
@@ -23,7 +25,7 @@ class IDecoder(abc.ABC):
 
 class PrimitiveEncoder(IEncoder):
     @staticmethod
-    def encode(field: Any, meta: PrimitiveType) -> bytes:
+    def encode(field: Any, meta: APrimitiveType) -> bytes:
         return struct.pack(f">{meta.struct_symbol}", field)
 
 
@@ -58,7 +60,7 @@ class StructEncoder(IEncoder):
 
 class PrimitiveDecoder(IDecoder):
     @staticmethod
-    def decode(block: bytes, meta: PrimitiveType) -> Tuple[Any, int]:
+    def decode(block: bytes, meta: APrimitiveType) -> Tuple[Any, int]:
         res = struct.unpack(f">{meta.struct_symbol}", block[: meta.base_size])[0]
         return res, meta.base_size
 
@@ -118,11 +120,9 @@ def get_serializer_class(metatype: IType, class_type: str) -> Any:
 def _register_primitive_serializer_classes() -> None:
     for serializer_name in Serializer:
         base_class = globals()[f"Primitive{serializer_name}"]
-        for name in PrimitiveTypeEnum:
-            # TODO simplify PRIMITIVE + VARCHAR
-            if name != PrimitiveTypeEnum.VARCHAR:
-                class_name = f"{normalize_name(name)}{serializer_name}"
-                globals()[class_name] = type(class_name, (base_class,), {})
+        for name in PrimitiveType:
+            class_name = f"{normalize_name(name)}{serializer_name}"
+            globals()[class_name] = type(class_name, (base_class,), {})
 
 
 _register_primitive_serializer_classes()
