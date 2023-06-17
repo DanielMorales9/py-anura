@@ -1,8 +1,8 @@
 import pytest as pytest
 
 from anura.constants import Charset
-from anura.metadata.exceptions import ParsingError
-from anura.metadata.parser import parse
+from anura.experimental.exceptions import ParsingError
+from anura.experimental.parser import parse
 from anura.types import (
     ArrayType,
     IntType,

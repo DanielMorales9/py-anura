@@ -5,8 +5,10 @@ from unittest.mock import patch
 import pytest as pytest
 
 from anura.io import decode
-from anura.lsm import LSMTree, MemTable, Metadata, SSTable
+from anura.lsm import LSMTree, MemTable
+from anura.metadata import TableMetadata
 from anura.model import MemNode
+from anura.sstable import SSTable
 from anura.types import APrimitiveType, ArrayType, VarcharType  # type: ignore[attr-defined]
 
 TEST_META = "key=LONG,value=LONG,tombstone=BOOL"
@@ -65,7 +67,7 @@ def test_flush_lsm(my_lsm):
 def setup_metadata(tmp_path, meta="key=LONG,value=VARCHAR,tombstone=BOOL"):
     meta_data_path = tmp_path / "meta.data"
     meta_data_path.write_text(meta)
-    metadata = Metadata(tmp_path)
+    metadata = TableMetadata(tmp_path)
     return metadata
 
 
@@ -259,7 +261,7 @@ def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
 def test_meta_array(tmp_path):
     meta_data_path = tmp_path / "meta.data"
     meta_data_path.write_text("key=VARCHAR,value=VARCHAR[],tombstone=BOOL")
-    metadata = Metadata(tmp_path)
+    metadata = TableMetadata(tmp_path)
     assert isinstance(metadata._meta["key"], VarcharType)
     assert isinstance(metadata._meta["value"], ArrayType)
     assert isinstance(metadata._meta["tombstone"], APrimitiveType)

@@ -9,7 +9,7 @@ from anura import types
 from anura.constants import ComplexType, PrimitiveType
 
 # --- Tokenizer
-from anura.metadata.exceptions import ParsingError
+from anura.experimental.exceptions import ParsingError
 from anura.types import ArrayType, IType, StructType, convert_value_to_field_type
 from anura.utils import normalize_name
 
@@ -73,8 +73,8 @@ class TerminalOp(AOp):
     def __call__(self) -> Any:
         return getattr(types, f"{normalize_name(self._terminal)}Type")()
 
-    def __repr__(self):
-        return f"Group({self._terminal})"
+    def __repr__(self) -> str:
+        return self._terminal
 
 
 class LiteralOp(AOp):
@@ -84,7 +84,7 @@ class LiteralOp(AOp):
     def __call__(self) -> Any:
         return self._literal
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Literal({self._literal})"
 
 
@@ -96,7 +96,7 @@ class GroupOp(AOp):
     def __call__(self) -> Dict:
         return {**self._left(), **self._right()}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Group({self._left}, {self._right})"
 
 
@@ -108,7 +108,7 @@ class AssignOp(AOp):
     def __call__(self) -> Dict:
         return {self._left: self._right()}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Assign({self._left}, {self._right})"
 
 
@@ -119,7 +119,7 @@ class ArrayOp(AOp):
     def __call__(self) -> ArrayType:
         return ArrayType(self._inner())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Array({self._inner})"
 
 
@@ -130,7 +130,7 @@ class StructOp(AOp):
     def __call__(self) -> StructType:
         return StructType(self._inner())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Struct({self._inner})"
 
 

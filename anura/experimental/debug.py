@@ -1,4 +1,4 @@
-from anura.metadata.parser import parser
+from anura.experimental.parser import parser
 
 while True:
     try:
