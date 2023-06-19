@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Sequence, Type
 
 from ply.lex import lex
 from ply.yacc import yacc
@@ -10,8 +10,8 @@ from anura.constants import ComplexType, PrimitiveType
 
 # --- Tokenizer
 from anura.experimental.exceptions import ParsingError
-from anura.types import ArrayType, IType, StructType, convert_value_to_field_type
-from anura.utils import normalize_name
+from anura.types import APrimitiveType, ArrayType, IType, StructType, get_class_type
+from anura.utils import convert_to_builtin_type, is_builtin_type, normalize_name
 
 tokens = ("ID", "VALUE", "ASSIGN", "TYPE", "COMMA", "LBRACE", "RBRACE", "LSQUARE", "RSQUARE", "LPAREN", "RPAREN")
 
@@ -71,7 +71,7 @@ class TerminalOp(AOp):
         self._terminal = terminal
 
     def __call__(self) -> Any:
-        return getattr(types, f"{normalize_name(self._terminal)}Type")()
+        return get_class_type(self._terminal)()
 
     def __repr__(self) -> str:
         return self._terminal
@@ -138,6 +138,22 @@ def validate_has_attribute(anura_type: IType, field: str) -> None:
     type_name = anura_type.__class__.__name__
     if not hasattr(anura_type, field):
         raise AttributeError(f"Attribute '{field}' not found in {type_name}")
+
+
+def convert_to_primitive_type(value: str) -> APrimitiveType:
+    if value not in list(PrimitiveType):
+        raise ValueError(f"'{value}' is not a PrimitiveType")
+    return getattr(types, f"{normalize_name(value)}Type")()
+
+
+def convert_value_to_field_type(field_type: Type, value: str) -> Any:
+    if is_builtin_type(field_type):
+        return convert_to_builtin_type(field_type, value)
+
+    if issubclass(field_type, APrimitiveType):
+        return convert_to_primitive_type(value)
+
+    raise ValueError(f"Unknown {field_type}")
 
 
 class OptionOp(AOp):

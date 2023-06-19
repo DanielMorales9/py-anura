@@ -1,5 +1,7 @@
+import json
 from gzip import decompress
 from itertools import zip_longest
+from typing import Dict
 from unittest.mock import patch
 
 import pytest as pytest
@@ -9,15 +11,22 @@ from anura.lsm import LSMTree, MemTable
 from anura.metadata import TableMetadata
 from anura.model import MemNode
 from anura.sstable import SSTable
-from anura.types import APrimitiveType, ArrayType, VarcharType  # type: ignore[attr-defined]
+from anura.types import ArrayType, BoolType, VarcharType  # type: ignore[attr-defined]
 
-TEST_META = "key=LONG,value=LONG,tombstone=BOOL"
+TEST_META = {"fields": {"key": {"type": "LONG"}, "value": {"type": "LONG"}, "tombstone": {"type": "BOOL"}}}
+TEST_META1 = {"fields": {"key": {"type": "LONG"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}}
+
+
+def setup_metadata(tmp_path, meta: Dict = None) -> TableMetadata:
+    meta = meta or TEST_META
+    meta_data_path = tmp_path / "metadata.json"
+    meta_data_path.write_text(json.dumps(meta))
+    return TableMetadata(tmp_path)
 
 
 @pytest.fixture
 def my_lsm(tmp_path):
-    meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text("key=LONG,value=VARCHAR,tombstone=BOOL")
+    _ = setup_metadata(tmp_path)
     return LSMTree(tmp_path)
 
 
@@ -64,48 +73,99 @@ def test_flush_lsm(my_lsm):
         mock_method.assert_called()
 
 
-def setup_metadata(tmp_path, meta="key=LONG,value=VARCHAR,tombstone=BOOL"):
-    meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text(meta)
-    metadata = TableMetadata(tmp_path)
-    return metadata
-
-
 TEST_DATA = [
-    ([(i, i) for i in range(100)], [0, 50], "key=LONG,value=LONG,tombstone=BOOL"),
+    (
+        [(i, i) for i in range(100)],
+        [0, 50],
+        {"fields": {"key": {"type": "LONG"}, "value": {"type": "LONG"}, "tombstone": {"type": "BOOL"}}},
+    ),
     (
         [(f"key{i:02}", f"val{i:02d}") for i in range(100)],
         ["key00", "key50"],
-        "key=VARCHAR,value=VARCHAR,tombstone=BOOL",
+        {"fields": {"key": {"type": "VARCHAR"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}},
     ),
-    ([(i, f"val{i:02d}") for i in range(100)], [0, 50], "key=LONG,value=VARCHAR,tombstone=BOOL"),
-    ([(float(i), f"val{i:02d}") for i in range(100)], [0, 50], "key=DOUBLE,value=VARCHAR,tombstone=BOOL"),
-    ([(float(i), i) for i in range(100)], [0, 50], "key=FLOAT,value=INT,tombstone=BOOL"),
-    ([(i, float(i)) for i in range(100)], [0, 50], "key=SHORT,value=DOUBLE,tombstone=BOOL"),
+    (
+        [(i, f"val{i:02d}") for i in range(100)],
+        [0, 50],
+        {"fields": {"key": {"type": "LONG"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}},
+    ),
+    (
+        [(float(i), f"val{i:02d}") for i in range(100)],
+        [0, 50],
+        {"fields": {"key": {"type": "DOUBLE"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}},
+    ),
+    (
+        [(float(i), i) for i in range(100)],
+        [0, 50],
+        {"fields": {"key": {"type": "FLOAT"}, "value": {"type": "INT"}, "tombstone": {"type": "BOOL"}}},
+    ),
+    (
+        [(i, float(i)) for i in range(100)],
+        [0, 50],
+        {"fields": {"key": {"type": "SHORT"}, "value": {"type": "DOUBLE"}, "tombstone": {"type": "BOOL"}}},
+    ),
     (
         [(i, [i, i]) for i in range(100)],
         [0, 50],
-        "key=LONG,value=INT[],tombstone=BOOL",
+        {
+            "fields": {
+                "key": {"type": "LONG"},
+                "value": {"type": "ARRAY", "options": {"inner_type": {"type": "INT"}}},
+                "tombstone": {"type": "BOOL"},
+            }
+        },
     ),
     (
         [(i, {"a": i, "b": f"val{i:02d}"}) for i in range(100)],
         [0, 50],
-        "key=LONG,value={a=INT,b=VARCHAR},tombstone=BOOL",
+        {
+            "fields": {
+                "key": {"type": "LONG"},
+                "value": {"type": "STRUCT", "options": {"inner": {"a": {"type": "INT"}, "b": {"type": "VARCHAR"}}}},
+                "tombstone": {"type": "BOOL"},
+            }
+        },
     ),
     (
         [(i, {"a": [0] * i, "b": f"val{i:02d}"}) for i in range(100)],
         [0, 50],
-        "key=INT,value={a=INT[],b=VARCHAR},tombstone=BOOL",
+        {
+            "fields": {
+                "key": {"type": "INT"},
+                "value": {
+                    "type": "STRUCT",
+                    "options": {
+                        "inner": {
+                            "a": {"type": "ARRAY", "options": {"inner_type": {"type": "INT"}}},
+                            "b": {"type": "VARCHAR"},
+                        }
+                    },
+                },
+                "tombstone": {"type": "BOOL"},
+            }
+        },
     ),
     (
         [(i, f"val{i:02d}") for i in range(100)],
         [0, 50],
-        "key=INT,value=VARCHAR(charset='ascii'),tombstone=BOOL",
+        {
+            "fields": {
+                "key": {"type": "INT"},
+                "value": {"type": "VARCHAR", "options": {"charset": "ascii"}},
+                "tombstone": {"type": "BOOL"},
+            }
+        },
     ),
     (
         [(i, f"val{i:02d}") for i in range(100)],
         [0, 50],
-        "key=INT,value=VARCHAR(charset='ascii',length_type='UNSIGNED_INT'),tombstone=BOOL",
+        {
+            "fields": {
+                "key": {"type": "INT"},
+                "value": {"type": "VARCHAR", "options": {"charset": "ascii", "length_type": {"type": "UNSIGNED_INT"}}},
+                "tombstone": {"type": "BOOL"},
+            }
+        },
     ),
 ]
 
@@ -189,7 +249,8 @@ def test_iter(tmp_path, data, index, meta):
     ],
 )
 def test_merge_tables(tmp_path, my_lsm, data, expected):
-    metadata = setup_metadata(tmp_path)
+    metadata = setup_metadata(tmp_path, meta=TEST_META1)
+    my_lsm._meta = metadata
 
     tables = []
     for serial, it, deleted in data:
@@ -217,7 +278,7 @@ def test_search_empty_block(tmp_path, key, data):
 
 def test_find_lsm(my_lsm, tmp_path):
     # fixture setup
-    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, "key=LONG,value=LONG,tombstone=BOOL"), serial=101)]
+    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm._find("key") is None
@@ -259,9 +320,16 @@ def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
 
 
 def test_meta_array(tmp_path):
-    meta_data_path = tmp_path / "meta.data"
-    meta_data_path.write_text("key=VARCHAR,value=VARCHAR[],tombstone=BOOL")
-    metadata = TableMetadata(tmp_path)
-    assert isinstance(metadata._meta["key"], VarcharType)
-    assert isinstance(metadata._meta["value"], ArrayType)
-    assert isinstance(metadata._meta["tombstone"], APrimitiveType)
+    metadata = setup_metadata(
+        tmp_path,
+        {
+            "fields": {
+                "key": {"type": "VARCHAR"},
+                "value": {"type": "ARRAY", "options": {"inner_type": {"type": "INT"}}},
+                "tombstone": {"type": "BOOL"},
+            }
+        },
+    )
+    assert isinstance(metadata.key_type, VarcharType)
+    assert isinstance(metadata.value_type, ArrayType)
+    assert isinstance(metadata.tombstone_type, BoolType)

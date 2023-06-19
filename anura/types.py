@@ -2,8 +2,8 @@ import dataclasses
 from dataclasses import dataclass
 from typing import Any, Dict, Type
 
-from anura.constants import Charset, PrimitiveType
-from anura.utils import convert_to_builtin_type, is_builtin_type, normalize_name
+from anura.constants import Charset
+from anura.utils import normalize_name
 
 
 @dataclass
@@ -132,17 +132,7 @@ class StructType(IType):
 # TODO add type Timestamp
 # TODO add type Date
 # TODO add type Char
-def convert_to_primitive_type(value: str) -> APrimitiveType:
-    if value not in list(PrimitiveType):
-        raise ValueError(f"'{value}' is not a PrimitiveType")
-    return globals()[f"{normalize_name(value)}Type"]()  # type: ignore[no-any-return]
 
 
-def convert_value_to_field_type(field_type: Type, value: str) -> Any:
-    if is_builtin_type(field_type):
-        return convert_to_builtin_type(field_type, value)
-
-    if issubclass(field_type, APrimitiveType):
-        return convert_to_primitive_type(value)
-
-    raise ValueError(f"Unknown {field_type}")
+def get_class_type(terminal: str) -> Type:
+    return globals()[f"{normalize_name(terminal)}Type"]  # type: ignore[no-any-return]
