@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Generator, Generic, List, Optional
+from typing import Generator, Generic, Iterator, List, Optional
 
 from anura.btree import AVLTree
 from anura.metadata import TableMetadata
@@ -44,6 +44,14 @@ class LSMTree(Generic[K, V]):
     def tables(self) -> List[SSTable[K, V]]:
         return self._tables
 
+    def delete_tables(self) -> None:
+        for table in self._tables:
+            table.delete()
+        self._tables = []
+
+    def append_table(self, table: SSTable) -> None:
+        self._tables.append(table)
+
     @property
     def metadata(self) -> TableMetadata:
         return self._metadata
@@ -64,13 +72,14 @@ class LSMTree(Generic[K, V]):
     def delete(self, key: K) -> None:
         del self._mem_table[key]
 
-    def flush(self) -> None:
-        # TODO invert control
-        # TODO: background process flushing data
-        table = SSTable[K, V](self.path, self._metadata)
-        table.write(iter(self._mem_table))
-        self._tables.append(table)
+    def reset_cache(self) -> None:
         self._mem_table = MemTable[K, V]()
+
+    def create_table(self, it: Optional[Iterator] = None) -> SSTable[K, V]:
+        it = it or iter(self._mem_table)
+        table = SSTable[K, V](self.path, self._metadata)
+        table.write(it)
+        return table
 
     def _find(self, key: K) -> Optional[V]:
         # TODO: test correctness

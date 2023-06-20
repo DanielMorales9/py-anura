@@ -4,7 +4,7 @@ from typing import Iterator, List
 from anura.algorithms import k_way_merge_sort
 from anura.concurrency import ReadWriteLock
 from anura.lsm import LSMTree
-from anura.model import K, MemNode, V
+from anura.model import MemNode
 from anura.sstable import SSTable
 
 
@@ -26,14 +26,10 @@ def gen_sort_uniq(tables: List[SSTable]) -> Iterator[MemNode]:
 #  https://www.datastax.com/blog/leveled-compaction-apache-cassandra
 class NaiveCompaction(ICompaction):
     def compact(self, lsm: "LSMTree") -> None:
-        # enter process safe section
-        table = SSTable[K, V](lsm.path, lsm.metadata, is_temp=True)
-        table.write(gen_sort_uniq(lsm.tables))
-        # exit process safe section
-
-        # acquire write lock
-        # TODO https://www.geeksforgeeks.org/implementation-of-locking-in-dbms/
+        # TODO acquire write lock from manager
+        #  https://www.geeksforgeeks.org/implementation-of-locking-in-dbms/
         #  https://github.com/dstibrany/LockManager/tree/master/src/main/java/com/dstibrany/lockmanager
         with ReadWriteLock().w_lock():
-            table.commit()
-            lsm._tables = [table]
+            table = lsm.create_table(gen_sort_uniq(lsm.tables))
+            lsm.delete_tables()
+            lsm.append_table(table)

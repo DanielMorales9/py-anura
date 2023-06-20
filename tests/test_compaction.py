@@ -47,4 +47,5 @@ def test_naive_compactor(tmp_path, data, expected):
 
     NaiveCompaction().compact(my_lsm)
 
+    assert all(not table.exists() for table in tables)
     assert list(my_lsm._tables[0]) == [MemNode(*v) for v in expected]

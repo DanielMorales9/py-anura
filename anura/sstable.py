@@ -7,44 +7,31 @@ from pathlib import Path
 from typing import Any, Generic, Iterator, List, Optional, Sequence, Tuple
 
 from anura.algorithms import chunk
-from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT, TMP_EXT
+from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT
 from anura.io import decode, encode, read_block, write_from
 from anura.metadata import TableMetadata
 from anura.model import K, MemNode, V
 from anura.types import LongType
 
 
-def rename_tmp_table(tmp_path: Path) -> Path:
-    new_path = Path(os.path.splitext(tmp_path)[0])
-    os.rename(tmp_path, new_path)
-    return new_path
-
-
 class SSTable(Generic[K, V]):
     _offset_meta = LongType()
 
-    def __init__(self, path: Path, metadata: TableMetadata, serial: Optional[int] = None, is_temp: bool = False):
+    def __init__(self, path: Path, metadata: TableMetadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []
         self._metadata = list(metadata)
         self._index_meta = (metadata.key_type, self._offset_meta)
         # TODO microsecond precision
         self.serial = serial or int(datetime.utcnow().timestamp())
-        self._is_temp = is_temp
-        tmp_ext = TMP_EXT if self._is_temp else ""
-        self._table_path = path / f"{self.serial}.{SSTABLE_EXT}{tmp_ext}"
-        self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}{tmp_ext}"
+        self._table_path = path / f"{self.serial}.{SSTABLE_EXT}"
+        self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}"
 
-    @property
-    def is_temp(self) -> bool:
-        return self._is_temp
+    def delete(self) -> None:
+        os.remove(self._table_path)
+        os.remove(self._index_path)
 
-    def commit(self) -> None:
-        if not self._is_temp:
-            raise ValueError("SSTable is already effective")
-
-        self._table_path = rename_tmp_table(self._table_path)
-        self._index_path = rename_tmp_table(self._index_path)
-        self._is_temp = False
+    def exists(self) -> bool:
+        return all((os.path.exists(self._index_path), os.path.exists(self._table_path)))
 
     @staticmethod
     def _search(key: K, block: Sequence[Any]) -> Optional[MemNode[K, V]]:

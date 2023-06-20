@@ -49,17 +49,6 @@ def test_delete_mem_table(my_mem_table):
     assert my_mem_table["key1"] is None
 
 
-def test_flush_lsm(my_lsm):
-    # fixture setup
-    my_lsm.put("key", "value")
-
-    # test
-    with patch.object(SSTable, "write") as mock_method:
-        my_lsm.flush()
-        assert my_lsm._mem_table._btree.size == 0
-        mock_method.assert_called()
-
-
 TEST_DATA = [
     (
         [(i, i) for i in range(100)],
