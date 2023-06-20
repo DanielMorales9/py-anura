@@ -1,33 +1,20 @@
-import json
 from gzip import decompress
 from itertools import zip_longest
-from typing import Dict
 from unittest.mock import patch
 
 import pytest as pytest
+from constants import TEST_META
+from utils import setup_metadata
 
 from anura.io import decode
 from anura.lsm import LSMTree, MemTable
-from anura.metadata import TableMetadata
 from anura.model import MemNode
 from anura.sstable import SSTable
-from anura.types import ArrayType, BoolType, VarcharType  # type: ignore[attr-defined]
-
-TEST_META = {"fields": {"key": {"type": "LONG"}, "value": {"type": "LONG"}, "tombstone": {"type": "BOOL"}}}
-TEST_META1 = {"fields": {"key": {"type": "LONG"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}}
-
-
-def setup_metadata(tmp_path, meta: Dict = None) -> TableMetadata:
-    meta = meta or TEST_META
-    meta_data_path = tmp_path / "metadata.json"
-    meta_data_path.write_text(json.dumps(meta))
-    return TableMetadata(tmp_path)
 
 
 @pytest.fixture
 def my_lsm(tmp_path):
-    _ = setup_metadata(tmp_path)
-    return LSMTree(tmp_path)
+    return LSMTree(tmp_path, setup_metadata(tmp_path, metadata=TEST_META))
 
 
 @pytest.fixture
@@ -67,7 +54,7 @@ def test_flush_lsm(my_lsm):
     my_lsm.put("key", "value")
 
     # test
-    with patch.object(SSTable, "flush") as mock_method:
+    with patch.object(SSTable, "write") as mock_method:
         my_lsm.flush()
         assert my_lsm._mem_table._btree.size == 0
         mock_method.assert_called()
@@ -180,7 +167,7 @@ def test_flush_table(tmp_path, data, index, meta):
     metadata = setup_metadata(tmp_path, meta)
     table = SSTable(tmp_path, metadata, serial=serial)
     # test
-    table.flush(MemNode(k, v) for k, v in data)
+    table.write(MemNode(k, v) for k, v in data)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
         decoded_block = []
         for a, b in zip_longest(table._index, table._index[1:]):
@@ -204,7 +191,7 @@ def test_seq_scan(tmp_path, data, index, meta):
     metadata = setup_metadata(tmp_path, meta)
     table = SSTable(tmp_path, metadata)
 
-    table.flush(MemNode(k, v) for k, v in data)
+    table.write(MemNode(k, v) for k, v in data)
 
     assert [(rec.key, rec.value) for rec in table.seq_scan()] == data
 
@@ -218,48 +205,9 @@ def test_iter(tmp_path, data, index, meta):
     metadata = setup_metadata(tmp_path, meta)
     table = SSTable(tmp_path, metadata, serial=serial)
 
-    table.flush(MemNode(k, v) for k, v in data)
+    table.write(MemNode(k, v) for k, v in data)
 
     assert [(rec.key, rec.value) for rec in iter(table)] == data
-
-
-@pytest.mark.parametrize(
-    "data, expected",
-    [
-        pytest.param(
-            ((1, range(10), False), (2, range(10, 20), False)), ((i, f"v{i%10+1}") for i in range(20)), id="1"
-        ),
-        pytest.param(((2, range(10), False), (1, range(10), False)), ((i, "v2") for i in range(10)), id="2"),
-        pytest.param(
-            ((1, range(20, 30), False), (2, range(10), False), (3, range(10, 20), False)),
-            ((i, f"v{i%10+1}") for i in range(30)),
-            id="3",
-        ),
-        pytest.param(((1, range(20, 30), False), (2, range(10), True)), ((i, "v1") for i in range(20, 30)), id="4"),
-        pytest.param(
-            ((1, range(1_000), False), (2, range(1_000, 2_000), False)),
-            ((i, f"v{i % 1_000 + 1}") for i in range(2_000)),
-            id="4",
-        ),
-        pytest.param(
-            ((1, range(1, 20, 3), False), (2, range(0, 20, 7), False)),
-            [(0, "v2"), (1, "v1"), (4, "v1"), (7, "v2"), (10, "v1"), (13, "v1"), (14, "v2"), (16, "v1"), (19, "v1")],
-            id="5",
-        ),
-    ],
-)
-def test_merge_tables(tmp_path, my_lsm, data, expected):
-    metadata = setup_metadata(tmp_path, meta=TEST_META1)
-    my_lsm._meta = metadata
-
-    tables = []
-    for serial, it, deleted in data:
-        table = SSTable(tmp_path, metadata, serial=serial)
-        table.flush((MemNode(el, f"v{serial}", deleted) for el in it), block_size=5)
-        tables.append(table)
-
-    my_lsm._tables = tables
-    assert list(my_lsm.merge()) == [MemNode(*v) for v in expected]
 
 
 @pytest.mark.parametrize(
@@ -277,9 +225,7 @@ def test_search_empty_block(tmp_path, key, data):
 
 
 def test_find_lsm(my_lsm, tmp_path):
-    # fixture setup
     my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path), serial=101)]
-    # test
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm._find("key") is None
         mock_method.assert_called_once_with("key")
@@ -301,7 +247,7 @@ def test_find_lsm(my_lsm, tmp_path):
 def test_find_table(tmp_path, key, value):
     # fixture setup
     table = SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)
-    table.flush(MemNode(i, i) for i in range(100))
+    table.write(MemNode(i, i) for i in range(100))
 
     # test
     if value is not None:
@@ -310,26 +256,11 @@ def test_find_table(tmp_path, key, value):
         assert table.find(key) is None
 
 
-def test_lsm_get_or_find_in_disk(my_lsm, tmp_path):
+def test_lsm_get_or_find_in_disk(tmp_path):
     # fixture setup
-    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)]
+    lsm = LSMTree(tmp_path, setup_metadata(tmp_path, TEST_META))
+    lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)]
     # test
     with patch.object(SSTable, "find") as mock_method:
-        assert my_lsm.get("key") is None
+        assert lsm.get("key") is None
         mock_method.assert_called_once_with("key")
-
-
-def test_meta_array(tmp_path):
-    metadata = setup_metadata(
-        tmp_path,
-        {
-            "fields": {
-                "key": {"type": "VARCHAR"},
-                "value": {"type": "ARRAY", "options": {"inner_type": {"type": "INT"}}},
-                "tombstone": {"type": "BOOL"},
-            }
-        },
-    )
-    assert isinstance(metadata.key_type, VarcharType)
-    assert isinstance(metadata.value_type, ArrayType)
-    assert isinstance(metadata.tombstone_type, BoolType)

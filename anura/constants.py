@@ -1,5 +1,7 @@
+import os
 from enum import Enum
 
+PROCESS_BASED = int(os.environ.get("PROCESS_BASED", 1))
 BLOCK_SIZE = 50
 SSTABLE_EXT = "sst"
 SPARSE_IDX_EXT = "spx"
@@ -29,3 +31,6 @@ class Serializer(str, Enum):
 class Charset(str, Enum):
     ASCII = "ascii"
     UTF_8 = "utf-8"
+
+
+TMP_EXT = ".tmp"

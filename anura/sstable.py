@@ -1,3 +1,4 @@
+import os
 from bisect import bisect
 from datetime import datetime
 from gzip import compress, decompress
@@ -5,25 +6,45 @@ from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Generic, Iterator, List, Optional, Sequence, Tuple
 
-from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT
+from anura.algorithms import chunk
+from anura.constants import BLOCK_SIZE, SPARSE_IDX_EXT, SSTABLE_EXT, TMP_EXT
 from anura.io import decode, encode, read_block, write_from
 from anura.metadata import TableMetadata
 from anura.model import K, MemNode, V
 from anura.types import LongType
-from anura.utils import chunk
+
+
+def rename_tmp_table(tmp_path: Path) -> Path:
+    new_path = Path(os.path.splitext(tmp_path)[0])
+    os.rename(tmp_path, new_path)
+    return new_path
 
 
 class SSTable(Generic[K, V]):
     _offset_meta = LongType()
 
-    def __init__(self, path: Path, metadata: TableMetadata, serial: Optional[int] = None):
+    def __init__(self, path: Path, metadata: TableMetadata, serial: Optional[int] = None, is_temp: bool = False):
         self._index: List[Tuple[K, int]] = []
         self._metadata = list(metadata)
         self._index_meta = (metadata.key_type, self._offset_meta)
         # TODO microsecond precision
         self.serial = serial or int(datetime.utcnow().timestamp())
-        self._table_path = path / f"{self.serial}.{SSTABLE_EXT}"
-        self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}"
+        self._is_temp = is_temp
+        tmp_ext = TMP_EXT if self._is_temp else ""
+        self._table_path = path / f"{self.serial}.{SSTABLE_EXT}{tmp_ext}"
+        self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}{tmp_ext}"
+
+    @property
+    def is_temp(self) -> bool:
+        return self._is_temp
+
+    def commit(self) -> None:
+        if not self._is_temp:
+            raise ValueError("SSTable is already effective")
+
+        self._table_path = rename_tmp_table(self._table_path)
+        self._index_path = rename_tmp_table(self._index_path)
+        self._is_temp = False
 
     @staticmethod
     def _search(key: K, block: Sequence[Any]) -> Optional[MemNode[K, V]]:
@@ -32,7 +53,7 @@ class SSTable(Generic[K, V]):
             return MemNode[K, V](*block[j])
         return None
 
-    def flush(self, it: Iterator, block_size: int = BLOCK_SIZE) -> None:
+    def write(self, it: Iterator, block_size: int = BLOCK_SIZE) -> None:
         # TODO consider using mmap
         pipeline = self._write_pipeline(it, block_size)
         write_from(self._table_path, pipeline)

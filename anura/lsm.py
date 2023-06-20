@@ -1,11 +1,10 @@
 from pathlib import Path
-from typing import Generator, Generic, Iterator, List, Optional
+from typing import Generator, Generic, List, Optional
 
 from anura.btree import AVLTree
 from anura.metadata import TableMetadata
 from anura.model import K, MemNode, V
 from anura.sstable import SSTable
-from anura.utils import k_way_merge_sort
 
 
 class MemTable(Generic[K, V]):
@@ -34,14 +33,24 @@ class MemTable(Generic[K, V]):
 
 
 class LSMTree(Generic[K, V]):
-    # TODO: background process compacting tables: merge tables
-
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, metadata: TableMetadata) -> None:
         self._path = path
-        # TODO invert control
-        self._meta = TableMetadata(self._path)
+        self._metadata = metadata
         self._mem_table = MemTable[K, V]()
+        # TODO invert control
         self._tables: List[SSTable[K, V]] = []
+
+    @property
+    def tables(self) -> List[SSTable[K, V]]:
+        return self._tables
+
+    @property
+    def metadata(self) -> TableMetadata:
+        return self._metadata
+
+    @property
+    def path(self) -> Path:
+        return self._path
 
     def get(self, key: K) -> Optional[V]:
         value = self._mem_table[key]
@@ -55,21 +64,11 @@ class LSMTree(Generic[K, V]):
     def delete(self, key: K) -> None:
         del self._mem_table[key]
 
-    def merge(self) -> Iterator[MemNode[K, V]]:
-        # TODO KWayMergeCompactor - invert control
-        #  https://www.datastax.com/blog/leveled-compaction-apache-cassandra
-        #  https://en.wikipedia.org/wiki/Log-structured_merge-tree
-        prev = None
-        for curr in k_way_merge_sort(self._tables, key=lambda x: -x.serial):
-            if prev != curr and not curr.is_deleted:
-                yield curr
-                prev = curr
-
     def flush(self) -> None:
         # TODO invert control
         # TODO: background process flushing data
-        table = SSTable[K, V](self._path, self._meta)
-        table.flush(iter(self._mem_table))
+        table = SSTable[K, V](self.path, self._metadata)
+        table.write(iter(self._mem_table))
         self._tables.append(table)
         self._mem_table = MemTable[K, V]()
 
