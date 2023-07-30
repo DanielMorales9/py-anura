@@ -20,7 +20,7 @@ class SSTable(Generic[K, V]):
     def __init__(self, path: Path, metadata: TableMetadata, serial: Optional[int] = None):
         self._index: List[Tuple[K, int]] = []
         self._metadata = list(metadata)
-        self._index_meta = (metadata.key_type, self._offset_meta)
+        self._index_meta = (metadata.key, self._offset_meta)
         # TODO microsecond precision
         self.serial = serial or int(datetime.utcnow().timestamp())
         self._table_path = path / f"{self.serial}.{SSTABLE_EXT}"
@@ -89,3 +89,6 @@ class SSTable(Generic[K, V]):
 
     def __iter__(self) -> Iterator[MemNode[K, V]]:
         return self.seq_scan()
+
+    def __repr__(self) -> str:
+        return f"SSTable(serial={self.serial})"

@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Generator, Generic, Iterator, List, Optional
+from typing import Any, Generator, Generic, List, Optional
 
 from anura.btree import AVLTree
-from anura.metadata import TableMetadata
+from anura.metadata import TableMetadata, parse_metadata
 from anura.model import K, MemNode, V
 from anura.sstable import SSTable
 
@@ -33,32 +33,31 @@ class MemTable(Generic[K, V]):
 
 
 class LSMTree(Generic[K, V]):
-    def __init__(self, path: Path, metadata: TableMetadata) -> None:
+    def __init__(self, path: Path) -> None:
         self._path = path
-        self._metadata = metadata
+        self._metadata = TableMetadata(**parse_metadata(path / "metadata.json"))
         self._mem_table = MemTable[K, V]()
-        # TODO invert control
         self._tables: List[SSTable[K, V]] = []
 
     @property
-    def tables(self) -> List[SSTable[K, V]]:
+    def sstables(self) -> List[SSTable[K, V]]:
         return self._tables
-
-    def delete_tables(self) -> None:
-        for table in self._tables:
-            table.delete()
-        self._tables = []
-
-    def append_table(self, table: SSTable) -> None:
-        self._tables.append(table)
 
     @property
     def metadata(self) -> TableMetadata:
         return self._metadata
 
     @property
-    def path(self) -> Path:
-        return self._path
+    def mem_table(self) -> MemTable[K, V]:
+        return self._mem_table
+
+    def delete_sstables(self) -> None:
+        while self._tables:
+            table = self._tables.pop()
+            table.delete()
+
+    def append_sstable(self, table: SSTable) -> None:
+        self._tables.append(table)
 
     def get(self, key: K) -> Optional[V]:
         value = self._mem_table[key]
@@ -75,11 +74,8 @@ class LSMTree(Generic[K, V]):
     def reset_cache(self) -> None:
         self._mem_table = MemTable[K, V]()
 
-    def create_table(self, it: Optional[Iterator] = None) -> SSTable[K, V]:
-        it = it or iter(self._mem_table)
-        table = SSTable[K, V](self.path, self._metadata)
-        table.write(it)
-        return table
+    def create_sstable(self, **kwargs: Any) -> SSTable[K, V]:
+        return SSTable[K, V](self._path, self._metadata, **kwargs)
 
     def _find(self, key: K) -> Optional[V]:
         # TODO: test correctness

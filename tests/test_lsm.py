@@ -13,16 +13,13 @@ from anura.sstable import SSTable
 
 
 @pytest.fixture
-def my_lsm(tmp_path):
-    return LSMTree(tmp_path, setup_metadata(tmp_path, metadata=TEST_META))
-
-
-@pytest.fixture
 def my_mem_table():
     return MemTable()
 
 
-def test_lsm(my_lsm):
+def test_lsm(tmp_path):
+    setup_metadata(tmp_path)
+    my_lsm = LSMTree(tmp_path)
     assert my_lsm.get("key") is None
     my_lsm.put("key", "value")
     assert my_lsm.get("key") == "value"
@@ -153,8 +150,9 @@ TEST_DATA = [
 def test_flush_table(tmp_path, data, index, meta):
     # fixture setup
     serial = 101
-    metadata = setup_metadata(tmp_path, meta)
-    table = SSTable(tmp_path, metadata, serial=serial)
+    setup_metadata(tmp_path, {**meta, "table_name": "dummy"})
+    my_lsm = LSMTree(tmp_path)
+    table = my_lsm.create_sstable(serial=serial)
     # test
     table.write(MemNode(k, v) for k, v in data)
     with open(tmp_path / f"{serial}.sst", "rb") as f:
@@ -162,7 +160,7 @@ def test_flush_table(tmp_path, data, index, meta):
         for a, b in zip_longest(table._index, table._index[1:]):
             f.seek(a[1])
             size = b[1] - a[1] if b else -1
-            decoded_block.extend(MemNode(*el) for el in decode(decompress(f.read(size)), list(metadata)))
+            decoded_block.extend(MemNode(*el) for el in decode(decompress(f.read(size)), list(my_lsm.metadata)))
     assert len(decoded_block) == 100
     assert decoded_block == sorted([MemNode(k, v) for k, v in data], key=lambda x: x.key)
     assert all(not record.is_deleted for record in decoded_block)
@@ -177,8 +175,9 @@ def test_flush_table(tmp_path, data, index, meta):
     TEST_DATA,
 )
 def test_seq_scan(tmp_path, data, index, meta):
-    metadata = setup_metadata(tmp_path, meta)
-    table = SSTable(tmp_path, metadata)
+    setup_metadata(tmp_path, {**meta, "table_name": "dummy"})
+    my_lsm = LSMTree(tmp_path)
+    table = my_lsm.create_sstable()
 
     table.write(MemNode(k, v) for k, v in data)
 
@@ -190,10 +189,9 @@ def test_seq_scan(tmp_path, data, index, meta):
     TEST_DATA,
 )
 def test_iter(tmp_path, data, index, meta):
-    serial = 101
-    metadata = setup_metadata(tmp_path, meta)
-    table = SSTable(tmp_path, metadata, serial=serial)
-
+    setup_metadata(tmp_path, {**meta, "table_name": "dummy"})
+    my_lsm = LSMTree(tmp_path)
+    table = my_lsm.create_sstable()
     table.write(MemNode(k, v) for k, v in data)
 
     assert [(rec.key, rec.value) for rec in iter(table)] == data
@@ -208,13 +206,16 @@ def test_iter(tmp_path, data, index, meta):
     ],
 )
 def test_search_empty_block(tmp_path, key, data):
-    metadata = setup_metadata(tmp_path)
-    table = SSTable(tmp_path, metadata, serial=101)
+    setup_metadata(tmp_path)
+    my_lsm = LSMTree(tmp_path)
+    table = my_lsm.create_sstable()
     assert table._search(key, data) is None
 
 
-def test_find_lsm(my_lsm, tmp_path):
-    my_lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path), serial=101)]
+def test_find_lsm(tmp_path):
+    setup_metadata(tmp_path)
+    my_lsm = LSMTree(tmp_path)
+    my_lsm.append_sstable(my_lsm.create_sstable())
     with patch.object(SSTable, "find") as mock_method:
         assert my_lsm._find("key") is None
         mock_method.assert_called_once_with("key")
@@ -235,7 +236,9 @@ def test_find_lsm(my_lsm, tmp_path):
 )
 def test_find_table(tmp_path, key, value):
     # fixture setup
-    table = SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)
+    setup_metadata(tmp_path, TEST_META)
+    lsm = LSMTree(tmp_path)
+    table = lsm.create_sstable()
     table.write(MemNode(i, i) for i in range(100))
 
     # test
@@ -247,8 +250,9 @@ def test_find_table(tmp_path, key, value):
 
 def test_lsm_get_or_find_in_disk(tmp_path):
     # fixture setup
-    lsm = LSMTree(tmp_path, setup_metadata(tmp_path, TEST_META))
-    lsm._tables = [SSTable(tmp_path, setup_metadata(tmp_path, TEST_META), serial=101)]
+    setup_metadata(tmp_path, TEST_META)
+    lsm = LSMTree(tmp_path)
+    lsm.append_sstable(lsm.create_sstable())
     # test
     with patch.object(SSTable, "find") as mock_method:
         assert lsm.get("key") is None

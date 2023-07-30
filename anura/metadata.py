@@ -1,8 +1,9 @@
-import json
+import dataclasses
 from pathlib import Path
 from typing import Any, Dict, Iterator
 
 from anura.types import IType, get_class_type
+from anura.utils import load_json
 
 
 def _parse_type(inp: Dict | str | int) -> Any:
@@ -16,24 +17,20 @@ def _parse_type(inp: Dict | str | int) -> Any:
     return get_class_type(inp["type"])(**kwargs)
 
 
+def parse_metadata(path: Path) -> dict:
+    content = load_json(path)
+    meta = {"table_name": content["table_name"]}
+    for name, value in content["fields"].items():
+        meta[name] = _parse_type(value)
+    return meta
+
+
+@dataclasses.dataclass
 class TableMetadata:
-    def __init__(self, path: Path):
-        self._path = path / "metadata.json"
-        with open(self._path) as f:
-            json_meta = json.load(f)
-        self._meta = {field: _parse_type(value) for field, value in json_meta["fields"].items()}
-
-    @property
-    def key_type(self) -> Any:
-        return self._meta["key"]
-
-    @property
-    def value_type(self) -> Any:
-        return self._meta["value"]
-
-    @property
-    def tombstone_type(self) -> Any:
-        return self._meta["tombstone"]
+    table_name: str
+    key: IType
+    value: IType
+    tombstone: IType
 
     def __iter__(self) -> Iterator[IType]:
-        return iter((self.key_type, self.value_type, self.tombstone_type))
+        return iter((self.key, self.value, self.tombstone))

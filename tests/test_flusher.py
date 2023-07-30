@@ -27,11 +27,14 @@ from anura.model import MemNode
     ],
 )
 def test_flusher(tmp_path, data):
-    metadata = setup_metadata(
+    setup_metadata(
         tmp_path,
-        metadata={"fields": {"key": {"type": "LONG"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}}},
+        metadata={
+            "table_name": "dummy",
+            "fields": {"key": {"type": "LONG"}, "value": {"type": "VARCHAR"}, "tombstone": {"type": "BOOL"}},
+        },
     )
-    my_lsm = LSMTree(tmp_path, metadata)
+    my_lsm = LSMTree(tmp_path)
     my_lsm._mem_table = cache = MemTable()
 
     for k, v in data:
@@ -40,4 +43,4 @@ def test_flusher(tmp_path, data):
     TableFlusher.flush(my_lsm)
 
     assert list(my_lsm._mem_table) == []
-    assert list(my_lsm.tables[0]) == [MemNode(*v) for v in data]
+    assert list(my_lsm.sstables[0]) == [MemNode(*v) for v in data]
