@@ -32,3 +32,8 @@ class Charset(str, Enum):
 
 
 TMP_EXT = ".tmp"
+
+
+class LockMode(Enum):
+    SHARED = 0
+    EXCLUSIVE = 1

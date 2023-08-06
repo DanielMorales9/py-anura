@@ -1,4 +1,5 @@
 import json
+import time
 from pathlib import Path
 from typing import Any, Type
 
@@ -26,3 +27,7 @@ def convert_to_builtin_type(field_type: Type, value: str) -> Any:
 def load_json(path: Path) -> Any:
     with open(path) as f:
         return json.load(f)
+
+
+def generate_id() -> int:
+    return time.time_ns()

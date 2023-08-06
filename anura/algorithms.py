@@ -33,3 +33,16 @@ def k_way_merge_sort(tables: List[Any], key: Optional[Callable[[Any], Any]] = No
 def chunk(it: Iterator, size: int) -> Iterator[Sequence[Any]]:
     while _chunk := list(islice(it, size)):
         yield _chunk
+
+
+def has_cycle(graph: dict, start: Any) -> Optional[Any]:
+    stack, visited = [start], set()
+    while stack:
+        vertex = stack.pop()
+        if vertex not in visited:
+            visited.add(vertex)
+            if vertex in graph:
+                stack.extend(graph[vertex])
+        else:
+            return vertex
+    return None

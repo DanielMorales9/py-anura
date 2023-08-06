@@ -1,6 +1,5 @@
 import os
 from bisect import bisect
-from datetime import datetime
 from gzip import compress, decompress
 from itertools import zip_longest
 from pathlib import Path
@@ -12,6 +11,7 @@ from anura.io import decode, encode, read_block, write_from
 from anura.metadata import TableMetadata
 from anura.model import K, MemNode, V
 from anura.types import LongType
+from anura.utils import generate_id
 
 
 class SSTable(Generic[K, V]):
@@ -22,7 +22,7 @@ class SSTable(Generic[K, V]):
         self._metadata = list(metadata)
         self._index_meta = (metadata.key, self._offset_meta)
         # TODO microsecond precision
-        self.serial = serial or int(datetime.utcnow().timestamp())
+        self.serial = serial or generate_id()
         self._table_path = path / f"{self.serial}.{SSTABLE_EXT}"
         self._index_path = path / f"{self.serial}.{SPARSE_IDX_EXT}"
 

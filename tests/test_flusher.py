@@ -1,6 +1,7 @@
 import pytest
 from utils import setup_metadata
 
+from anura.concurrent.manager import LockManager
 from anura.flusher import TableFlusher
 from anura.lsm import LSMTree, MemTable
 from anura.model import MemNode
@@ -40,7 +41,7 @@ def test_flusher(tmp_path, data):
     for k, v in data:
         cache[k] = v
 
-    TableFlusher.flush(my_lsm)
+    TableFlusher(LockManager()).flush(my_lsm, 1)
 
     assert list(my_lsm._mem_table) == []
     assert list(my_lsm.sstables[0]) == [MemNode(*v) for v in data]
